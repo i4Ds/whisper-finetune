@@ -1,0 +1,29 @@
+model:
+  init_name: large-v3
+dataset:
+  dataset_name: i4ds/stt
+  no_timestamp_training: False
+  prompt_use_rate: 0.5
+  no_timestamp_rate: 0.5
+lr_scheduler:
+  type: cosine_with_warmup_restarts_chill
+  num_cycles: 3
+  lr_gamma: 0.5
+  chill_steps: 100
+  chill_range: 0.02
+training:
+  accum_grad_steps: 32
+  warmup_steps: 500
+  max_grad_norm: 1.0
+  train_steps: 5000
+  eval_steps: 500
+  save_all_checkpoints: False
+  seed: 123
+  batch_size: 1
+  batch_size_eval: 16
+augmentation:
+  spec_augment:
+    active: True
+    time_mask_param: 100
+    p: 1.0
+    freq_mask_param: 27

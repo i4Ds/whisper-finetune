@@ -1,0 +1,36 @@
+[project]
+name = "whisper-finetune"
+description = """Data preparation and finetuning of OpenAIs Whisper model for Swiss German data."""
+authors = [
+    { name = "Claudio Paonessa", email = "claudio.paonessa@fhnw.ch" },
+]
+readme = "README.md"
+requires-python = ">=3.9"
+version = "0.1.0"
+dynamic = ["dependencies"]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.optional-dependencies]
+dev = [
+
+    # Auto-formatters
+    "isort >= 5.10.1",
+    "black >= 23.1.0",
+    "flake8 >= 6.0.0"
+]
+
+[build-system]
+requires = ["setuptools >= 56.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+# A Python utility / library to sort Python imports.
+# https://github.com/psf/black
+line_length = 120
+
+[tool.isort]
+# A Python utility / library to sort Python imports.
+# https://pycqa.github.io/isort/
+profile = "black"
+
