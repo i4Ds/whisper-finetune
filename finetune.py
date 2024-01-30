@@ -1,5 +1,6 @@
 from typing import Iterator
 
+import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from whisper.tokenizer import get_tokenizer
@@ -15,7 +16,6 @@ def infinite_iter(data_loader: DataLoader) -> Iterator:
 
 def main() -> None:
     hf_dataset = load_dataset("i4ds/STT_SRG_DEBUG", split="train")
-    hf_dataset = hf_dataset.with_format(type="torch")
 
     tokenizer = get_tokenizer(multilingual=True, task="transcribe")
 

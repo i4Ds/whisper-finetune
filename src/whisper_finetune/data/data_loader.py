@@ -1,14 +1,17 @@
 import re
-from typing import List, Optional, Tuple
 from dataclasses import dataclass
-from numpy import ndarray
+from typing import List, Optional, Tuple
 
+import numpy as np
 import torch
 import torchaudio.transforms as T
+from datasets import Dataset as HU_Dataset
+from numpy import ndarray
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, log_mel_spectrogram, pad_or_trim
 from whisper.tokenizer import Tokenizer
+
 
 @dataclass
 class Record:
@@ -22,21 +25,25 @@ class Record:
     language: str = "en"
     prompt: str = ""  # previous text including timestamps
 
+
 class AudioDataset(Dataset):
     def __init__(
         self,
-        records: List[Record],
+        hu_dataset: HU_Dataset,
         tokenizer: Tokenizer,
         fp16: bool = True,
+        device: Optional[torch.device] = None,
         no_timestamps_training: bool = False,
         max_prompt_length: int = 223,  # The maximum number of tokens to use for the prompt
         prompt_use_rate: float = 0.5,
         no_timestamps_rate: float = 0.5,
         spec_augment: bool = False,
     ) -> None:
-        self.records = records
+        self.hu_dataset = hu_dataset
         self.tokenizer = tokenizer
         self.fp16 = fp16
+        self.dtype = torch.half if fp16 else torch.float
+        self.device = device
         self.no_timestamps_training = no_timestamps_training
         self.max_prompt_length = max_prompt_length
         self.prompt_use_rate = prompt_use_rate
@@ -51,9 +58,13 @@ class AudioDataset(Dataset):
         # timestamps tokens are from <|0.00|> to <|30.00|> with a step of 0.02
         self.timestamp_pattern = re.compile(r"(<\|[123]?[0-9]\.[0-9][0-9]\|>)")
         self.model_n_text_ctx = 448
+        self.hu_dataset = self.hu_dataset.with_format(type="torch")
+
+        # Some checks
+        assert np.intersect1d(self.hu_dataset.column_names, ["audio", "text", "language", "prompt"]).size == 4
 
     def __len__(self) -> int:
-        return len(self.records)
+        return len(self.hu_dataset)
 
     def _get_prompt_tokens(self, prompt: str) -> List[int]:
         if len(prompt) > 0 and torch.rand(1) < self.prompt_use_rate:
@@ -118,7 +129,7 @@ class AudioDataset(Dataset):
     def _calculate_mel(
         self, audio_array: ndarray, next_partial_segment_start: Optional[float], no_timestamps: bool
     ) -> torch.Tensor:
-        mel = log_mel_spectrogram(audio_array)
+        mel = log_mel_spectrogram(audio_array, device=self.device)
         if no_timestamps and next_partial_segment_start is not None:
             mel = mel[:, : int(next_partial_segment_start * self.num_frames_per_second)]
         mel = pad_or_trim(mel, N_FRAMES)
@@ -154,13 +165,13 @@ class AudioDataset(Dataset):
         return decoder_output
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        record = self.records[index]
-        no_timestamps = self.no_timestamps_training or torch.rand(1) < self.no_timestamps_rate
+        record = self.hu_dataset[index]
+        no_timestamps = self.no_timestamps_training or torch.rand(1).item() < self.no_timestamps_rate
 
-        prompt_tokens = self._get_prompt_tokens(record.prompt)
-        text_tokens, next_partial_segment_start = self._get_text_tokens(record.text, no_timestamps)
+        prompt_tokens = self._get_prompt_tokens(record["prompt"])
+        text_tokens, next_partial_segment_start = self._get_text_tokens(record["text"], no_timestamps)
         is_text_empty = len(text_tokens) == 0
-        special_tokens = self._get_special_tokens(is_text_empty, record.language, no_timestamps)
+        special_tokens = self._get_special_tokens(is_text_empty, record["language"], no_timestamps)
 
         decoder_input = prompt_tokens + special_tokens + text_tokens
         if len(decoder_input) > self.model_n_text_ctx:
@@ -168,12 +179,12 @@ class AudioDataset(Dataset):
 
         decoder_output = self._construct_decoder_output(prompt_tokens, special_tokens, text_tokens)
 
-        mel = self._calculate_mel(record.audio_array, next_partial_segment_start, no_timestamps)
+        mel = self._calculate_mel(record["audio"]["array"], next_partial_segment_start, no_timestamps)
 
         return (
             mel,
-            torch.tensor(decoder_input, dtype=torch.long),
-            torch.tensor(decoder_output, dtype=torch.long),
+            torch.tensor(decoder_input, dtype=self.dtype),
+            torch.tensor(decoder_output, dtype=self.dtype),
         )
 
 
@@ -186,10 +197,11 @@ def collate_fn(data):
 
 
 def get_dataloader(
-    records: List[Record],
+    hu_dataset: HU_Dataset,
     tokenizer: Tokenizer,
     batch_size: int = 1,
     fp16: bool = True,
+    device: Optional[torch.device] = None,  # Does not allow for multiprocessing.
     no_timestamps_training: bool = False,
     max_prompt_length: int = 223,
     prompt_use_rate: float = 0.5,
@@ -199,9 +211,10 @@ def get_dataloader(
     spec_augment: bool = False,
 ) -> DataLoader:
     dataset = AudioDataset(
-        records,
+        hu_dataset,
         tokenizer,
         fp16=fp16,
+        device=device,
         no_timestamps_training=no_timestamps_training,
         max_prompt_length=max_prompt_length,
         prompt_use_rate=prompt_use_rate,
