@@ -1,8 +1,9 @@
 [project]
 name = "whisper-finetune"
-description = """Data preparation and finetuning of OpenAIs Whisper model for Swiss German data."""
+description = """Script to finetune whisper with prompts on huggingface datasets."""
 authors = [
     { name = "Claudio Paonessa", email = "claudio.paonessa@fhnw.ch" },
+    { name = "Vincenzo Timmel", email = "vincenzo.timmel@fhnw.ch" }
 ]
 readme = "README.md"
 requires-python = ">=3.9"
