@@ -66,9 +66,12 @@ class AudioDataset(Dataset):
     def __len__(self) -> int:
         return len(self.hu_dataset)
 
-    def _get_prompt_tokens(self, prompt: str) -> List[int]:
-        if len(prompt) > 0 and torch.rand(1) < self.prompt_use_rate:
-            prompt_tokens = self._encode_text_with_timestamps(prompt)[-self.max_prompt_length :]
+    def _get_prompt_tokens(self, prompt: str, no_timestamps: bool) -> List[int]:
+        if len(prompt) > 0 and torch.rand(1).item() < self.prompt_use_rate:
+            if no_timestamps:
+                prompt_tokens = self._encode_text_without_timestamps(prompt)[-self.max_prompt_length :]
+            else:
+                prompt_tokens = self._encode_text_with_timestamps(prompt)[-self.max_prompt_length :]
             prompt_tokens = [self.tokenizer.sot_prev] + prompt_tokens
         else:
             prompt_tokens = []
@@ -88,6 +91,24 @@ class AudioDataset(Dataset):
                 special_tokens.append(self.tokenizer.no_timestamps)
 
         return special_tokens
+
+    def _encode_text_without_timestamps(self, text: str) -> List[int]:
+        """Encode text without timestamps by removing timestamps."""
+        parts = self.timestamp_pattern.split(text)
+        parts = [token for token in parts if token != ""]
+        tokens = []
+        for part in parts:
+            if self.timestamp_pattern.fullmatch(part) is not None:
+                timestamp = float(part[2:-2])
+
+                # timestamp must be in the range [0, 30] and be a multiple of 0.02 seconds
+                if timestamp < 0 or timestamp > 30 or round(timestamp * 100) % 2 != 0:
+                    raise ValueError(f"Invalid timestamp: {timestamp}")
+                continue
+            else:
+                tokens.extend(self.tokenizer.encode(part))
+
+        return tokens
 
     def _encode_text_with_timestamps(self, text: str) -> List[int]:
         parts = self.timestamp_pattern.split(text)
@@ -168,7 +189,7 @@ class AudioDataset(Dataset):
         record = self.hu_dataset[index]
         no_timestamps = self.no_timestamps_training or torch.rand(1).item() < self.no_timestamps_rate
 
-        prompt_tokens = self._get_prompt_tokens(record["prompt"])
+        prompt_tokens = self._get_prompt_tokens(record["prompt"], no_timestamps)
         text_tokens, next_partial_segment_start = self._get_text_tokens(record["text"], no_timestamps)
         is_text_empty = len(text_tokens) == 0
         special_tokens = self._get_special_tokens(is_text_empty, record["language"], no_timestamps)
