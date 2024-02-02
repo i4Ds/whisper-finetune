@@ -9,6 +9,7 @@ from datasets import Dataset as HU_Dataset
 from numpy import ndarray
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
+from whisper import Whisper
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, log_mel_spectrogram, pad_or_trim
 from whisper.tokenizer import Tokenizer
 
@@ -22,7 +23,7 @@ class Record:
 
     audio_array: ndarray
     text: str  # text including timestamps
-    language: str = "en"
+    language: str = ""
     prompt: str = ""  # previous text including timestamps
 
 
@@ -32,7 +33,7 @@ class AudioDataset(Dataset):
         hu_dataset: HU_Dataset,
         tokenizer: Tokenizer,
         fp16: bool = True,
-        device: Optional[torch.device] = None,
+        device: Optional[torch.device] = None,  # Does not allow for multiprocessing.
         no_timestamps_training: bool = False,
         max_prompt_length: int = 223,  # The maximum number of tokens to use for the prompt
         prompt_use_rate: float = 0.5,
@@ -42,7 +43,6 @@ class AudioDataset(Dataset):
         self.hu_dataset = hu_dataset
         self.tokenizer = tokenizer
         self.fp16 = fp16
-        self.dtype = torch.half if fp16 else torch.float
         self.device = device
         self.no_timestamps_training = no_timestamps_training
         self.max_prompt_length = max_prompt_length
@@ -204,8 +204,8 @@ class AudioDataset(Dataset):
 
         return (
             mel,
-            torch.tensor(decoder_input, dtype=self.dtype),
-            torch.tensor(decoder_output, dtype=self.dtype),
+            torch.tensor(decoder_input, dtype=torch.long),
+            torch.tensor(decoder_output, dtype=torch.long),
         )
 
 

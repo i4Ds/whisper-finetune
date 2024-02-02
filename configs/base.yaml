@@ -1,16 +1,28 @@
 model:
   init_name: large-v3
+  fp16: True
 dataset:
-  dataset_name: i4ds/stt
+  train_datasets: [i4ds/stt4sg-350_train_all_fold_0, i4ds/stt4sg-350_train_all_fold_1]
+  val_datasets: [i4ds/stt4sg-350_valid_fold_0]
   no_timestamp_training: False
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
+  batch_size: 4
 lr_scheduler:
   type: cosine_with_warmup_restarts_chill
   num_cycles: 3
   lr_gamma: 0.5
   chill_steps: 100
   chill_range: 0.02
+optimizer:
+  type: adamw
+  8bit: False
+  params:
+    lr: 0.0001
+    weight_decay: 0.1
+    betas: [0.9, 0.98]
+    eps: 1e-9
+    amsgrad: False
 training:
   accum_grad_steps: 32
   warmup_steps: 500
