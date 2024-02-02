@@ -35,7 +35,7 @@ training:
   batch_size_eval: 16
 augmentation:
   spec_augment:
-    active: True
+    apply: True
     time_mask_param: 100
     p: 1.0
     freq_mask_param: 27
