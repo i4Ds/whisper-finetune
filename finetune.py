@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import torch
+import wandb
 import whisper
 from datasets import concatenate_datasets, load_dataset
 from torch.utils.data import DataLoader
@@ -31,9 +32,14 @@ def main_loop(
     scheduler: torch.optim.lr_scheduler.LambdaLR,
     config: dict,
 ) -> None:
+    wandb.init(project="my_project", config=config)  # Initialize a new wandb run
+    wandb.watch(model, log="all")  # Log all gradients and model parameters
+
     min_loss = evaluate(model, dev_loader)
     print(f"Initial loss: {min_loss}")
     logging.info(f"eval\t0\t{min_loss}\t{scheduler.get_last_lr()[0]}")
+    wandb.log({"Initial loss": min_loss})  # Log initial loss
+
     pbar = tqdm(range(1, config["train_steps"] + 1))
     train_iter = infinite_iter(train_loader)
     for step in pbar:
@@ -48,12 +54,15 @@ def main_loop(
         )
         pbar.set_postfix({"loss": train_loss})
         logging.info(f"train\t{step}\t{train_loss}\t{scheduler.get_last_lr()[0]}")
+        wandb.log({"Train loss": train_loss})  # Log training loss
 
         if ((step <= config["eval_warmup"]) and (step % config["eval_steps_early"] == 0)) or (
             (step > config["eval_warmup"]) and (step % config["eval_steps"] == 0)
         ):
             eval_loss = evaluate(model, dev_loader)
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
+            wandb.log({"Validation loss": eval_loss})  # Log validation loss
+
             if eval_loss < min_loss:
                 min_loss = eval_loss
                 save_model(model, f"{config['save_dir']}/best_model.pt")
@@ -63,6 +72,8 @@ def main_loop(
 
             logging.info(f"eval\t{step}\t{eval_loss}\t{scheduler.get_last_lr()[0]}")
             save_model(model, f"{config['save_dir']}/last_model.pt")
+
+    wandb.finish()  # End the wandb run
 
 
 def main(config):
