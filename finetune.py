@@ -101,10 +101,10 @@ def main(config):
         prompt_use_rate=config["dataset"]["prompt_use_rate"],
         no_timestamps_rate=config["dataset"]["no_timestamps_rate"],
         num_workers=os.cpu_count(),
-        spec_augment=config["augmentation"]["spec_augment"],
-        time_mask_param=config["augmentation"]["time_mask_param"],
-        freq_mask_param=config["augmentation"]["freq_mask_param"],
-        p=config["augmentation"]["p"],
+        spec_augment=config["augmentation"]["spec_augment"]["apply"],
+        time_mask_param=config["augmentation"]["spec_augment"]["time_mask_param"],
+        freq_mask_param=config["augmentation"]["spec_augment"]["freq_mask_param"],
+        p=config["augmentation"]["spec_augment"]["p"],
     )
     val_loader = get_dataloader(
         hu_dataset=val_dataset,
