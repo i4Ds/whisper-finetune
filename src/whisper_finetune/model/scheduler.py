@@ -111,7 +111,7 @@ def get_cosine_annealing_with_warmup_restarts_chill(
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
-def get_scheduler(s_conf: dict, optimizer):
+def get_scheduler(optimizer: Optimizer, s_conf: dict):
     if s_conf["type"] == "linear":
         scheduler = get_linear_schedule_with_warmup(
             optimizer, num_warmup_steps=s_conf["warmup_steps"], num_training_steps=s_conf["train_steps"]
