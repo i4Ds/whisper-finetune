@@ -39,6 +39,9 @@ class AudioDataset(Dataset):
         prompt_use_rate: float = 0.5,
         no_timestamps_rate: float = 0.5,
         spec_augment: bool = False,
+        time_mask_param: int = 100,
+        freq_mask_param: int = 27,
+        p: float = 1.0,
     ) -> None:
         self.hu_dataset = hu_dataset
         self.tokenizer = tokenizer
@@ -51,8 +54,8 @@ class AudioDataset(Dataset):
         self.spec_augment = spec_augment
 
         if spec_augment:
-            self.time_masking = T.TimeMasking(time_mask_param=100, p=1.0)
-            self.freq_masking = T.FrequencyMasking(freq_mask_param=27)
+            self.time_masking = T.TimeMasking(time_mask_param=time_mask_param, p=p)
+            self.freq_masking = T.FrequencyMasking(freq_mask_param=freq_mask_param)
 
         self.num_frames_per_second = N_FRAMES / CHUNK_LENGTH
         # timestamps tokens are from <|0.00|> to <|30.00|> with a step of 0.02
@@ -230,6 +233,9 @@ def get_dataloader(
     shuffle: bool = True,
     num_workers: int = 0,
     spec_augment: bool = False,
+    time_mask_param: int = 100,
+    freq_mask_param: int = 27,
+    p: float = 1.0,
 ) -> DataLoader:
     dataset = AudioDataset(
         hu_dataset,
@@ -241,6 +247,9 @@ def get_dataloader(
         prompt_use_rate=prompt_use_rate,
         no_timestamps_rate=no_timestamps_rate,
         spec_augment=spec_augment,
+        time_mask_param=time_mask_param,
+        freq_mask_param=freq_mask_param,
+        p=p,
     )
     return DataLoader(
         dataset,
