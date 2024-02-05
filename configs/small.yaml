@@ -1,5 +1,5 @@
 model:
-  init_name: large-v3
+  init_name: small
   fp16: True
 dataset:
   train_datasets: [i4ds/stt4sg-350_train_all_fold_0, i4ds/stt4sg-350_train_all_fold_1]
@@ -16,7 +16,7 @@ lr_scheduler:
   chill_range: 0.02
 optimizer:
   type: adamw
-  8bit: False
+  8bit: True
   params:
     lr: 0.0001
     weight_decay: 0.1
@@ -41,4 +41,3 @@ augmentation:
     freq_mask_param: 27
 seed: 42
 save_dir: ./output
-

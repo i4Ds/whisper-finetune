@@ -224,6 +224,7 @@ def get_dataloader(
     hu_dataset: HU_Dataset,
     tokenizer: Tokenizer,
     batch_size: int = 1,
+    sampler: Optional[torch.utils.data.sampler.Sampler] = None,
     fp16: bool = True,
     device: Optional[torch.device] = None,  # Does not allow for multiprocessing.
     no_timestamps_training: bool = False,
@@ -254,6 +255,7 @@ def get_dataloader(
     return DataLoader(
         dataset,
         batch_size=batch_size,
+        sampler=sampler,
         shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=True,
