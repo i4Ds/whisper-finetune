@@ -15,11 +15,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements.txt
+COPY /cache /cache
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN python3 -m pip install --upgrade pip --no-cache-dir && python3 -m pip install -r requirements.txt
-
-COPY ./tiktoken/openai_public.py ./usr/local/lib/python3.10/dist-packages/tiktoken_ext/openai_public.py
-COPY ./tiktoken/core.py ./usr/local/lib/python3.10/dist-packages/tiktoken/core.py
