@@ -5,7 +5,6 @@ from pathlib import Path
 from socket import gethostname
 
 import torch
-import wandb
 import whisper
 from datasets import concatenate_datasets, load_dataset
 from torch.utils.data import DataLoader
@@ -13,6 +12,7 @@ from tqdm import tqdm
 from whisper import Whisper as WhisperModel
 from whisper.tokenizer import get_tokenizer
 
+import wandb
 from whisper_finetune.data.data_loader import get_dataloader
 from whisper_finetune.model.model_utils import (
     evaluate,

@@ -28,12 +28,12 @@ optimizer:
     amsgrad: False
 training:
   accum_grad_steps: 32
+  train_only_decoder: False
   warmup_steps: 500
   max_grad_norm: 1.0
   train_steps: 5000
   eval_steps: 500
   save_all_checkpoints: False
-  seed: 123
   batch_size: 1
   batch_size_eval: 16
 augmentation:
@@ -42,5 +42,5 @@ augmentation:
     time_mask_param: 100
     p: 1.0
     freq_mask_param: 27
-seed: 42
+seed: 123
 save_dir: ./output
