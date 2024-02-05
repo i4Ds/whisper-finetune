@@ -6,3 +6,4 @@ librosa==0.10.1
 soundfile==0.12.1; platform_system=="Windows"
 tiktoken @ git+https://github.com/swiss-german-speech-to-text/tiktoken@main
 transformers==4.37.2
+wandb=0.16.2

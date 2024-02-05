@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
+from socket import gethostname
 
 import torch
 import wandb
@@ -21,7 +22,7 @@ from whisper_finetune.model.model_utils import (
 )
 from whisper_finetune.model.optimizer import get_optimizer
 from whisper_finetune.model.scheduler import get_scheduler
-from whisper_finetune.utils import read_config, set_seed
+from whisper_finetune.utils import distributed_setup, read_config, set_seed
 
 
 def main_loop(
@@ -87,6 +88,9 @@ def main(config):
         format="%(asctime)s\t%(message)s",
     )
 
+    # Setup distributed training
+    dist_is_init = distributed_setup(rank=config["rank"], world_size=config["world_size"])
+
     # Get datasets
     ds_config = config["dataset"]
     train_datasets = []
@@ -101,10 +105,24 @@ def main(config):
     # Get tokenizer
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
 
+    # Create distributed sampler
+    if dist_is_init:
+        # Add distributed sampler
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            train_dataset, num_replicas=config["world_size"], rank=config["rank"]
+        )
+        # Assign GPUS
+        local_rank = rank - gpus_per_node * (rank // gpus_per_node)
+        torch.cuda.set_device(local_rank)
+        print(f"host: {gethostname()}, rank: {rank}, local_rank: {local_rank}")
+    else:
+        sampler = None
+
     # Get dataloaders
     train_loader = get_dataloader(
         hu_dataset=train_dataset,
         tokenizer=tokenizer,
+        sampler=sampler,
         batch_size=config["dataset"]["batch_size"],
         fp16=config["model"]["fp16"],
         no_timestamps_training=config["dataset"]["no_timestamps_training"],
@@ -149,4 +167,14 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, required=True, help="Path to the configuration YAML file")
     args = parser.parse_args()
     config = read_config(args.config)
+    # Get env varaibles
+    world_size = os.environ.get("WORLD_SIZE", 1)
+    rank = os.environ.get("RANK", 0)
+    gpus_per_node = os.environ.get("GPUS_PER_NODE", 1)
+    assert gpus_per_node == torch.cuda.device_count()
+    # Add env variables to config
+    config["world_size"] = world_size
+    config["rank"] = rank
+    config["gpus_per_node"] = gpus_per_node
+
     main(config)
