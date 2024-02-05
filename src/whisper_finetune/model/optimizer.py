@@ -21,6 +21,7 @@ def get_optimizer(model: WhisperModel, optimizer_conf: Dict):
             try:
                 import bitsandbytes as bnb
 
+                print(str(optimizer_conf["params"]))
                 optimizer = bnb.optim.AdamW8bit(model.parameters(), **optimizer_conf["params"])
             except ImportError:
                 raise ImportError("For using AdamW 8bit optimizer you need to have bitsandbytes installed.")

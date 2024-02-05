@@ -20,7 +20,7 @@ def set_seed(seed: int):
 
 def distributed_setup(rank, world_size):
     if not dist.is_available() or world_size < 2:
-        print("Distributed training is not available or world size is less than 2. World Size: ", world_size)
+        print("Distributed training is not available or world size is less than 2. World size:", world_size)
         return False
     # initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
