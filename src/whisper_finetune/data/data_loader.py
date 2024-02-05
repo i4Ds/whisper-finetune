@@ -207,8 +207,8 @@ class AudioDataset(Dataset):
 
         return (
             mel,
-            torch.tensor(decoder_input, dtype=torch.long),
-            torch.tensor(decoder_output, dtype=torch.long),
+            torch.tensor(decoder_input, dtype=torch.half if self.fp16 else torch.long),
+            torch.tensor(decoder_output, dtype=torch.half if self.fp16 else torch.long),
         )
 
 
