@@ -111,27 +111,27 @@ def get_cosine_annealing_with_warmup_restarts_chill(
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
-def get_scheduler(optimizer: Optimizer, s_conf: dict):
+def get_scheduler(optimizer: Optimizer, s_conf: dict, train_steps: int) -> LambdaLR:
     if s_conf["type"] == "linear":
         scheduler = get_linear_schedule_with_warmup(
-            optimizer, num_warmup_steps=s_conf["warmup_steps"], num_training_steps=s_conf["train_steps"]
+            optimizer, num_warmup_steps=s_conf["warmup_steps"], num_training_steps=train_steps
         )
     elif s_conf["type"] == "cosine":
         scheduler = get_cosine_schedule_with_warmup(
-            optimizer, num_warmup_steps=s_conf["warmup_steps"], num_training_steps=s_conf["train_steps"]
+            optimizer, num_warmup_steps=s_conf["warmup_steps"], num_training_steps=train_steps
         )
     elif s_conf["type"] == "cosine_with_restarts":
         scheduler = get_cosine_with_hard_restarts_schedule_with_warmup(
             optimizer,
             num_warmup_steps=s_conf["warmup_steps"],
-            num_training_steps=s_conf["train_steps"],
+            num_training_steps=train_steps,
             num_cycles=s_conf["lr_num_cycles"],
         )
     elif s_conf["type"] == "cosine_with_warmup_restarts":
         scheduler = get_cosine_annealing_with_warmup_restarts(
             optimizer,
             num_warmup_steps=s_conf["warmup_steps"],
-            num_training_steps=s_conf["train_steps"],
+            num_training_steps=train_steps,
             num_cycles=s_conf["lr_num_cycles"],
             gamma=s_conf["lr_gamma"],
         )
@@ -139,7 +139,7 @@ def get_scheduler(optimizer: Optimizer, s_conf: dict):
         scheduler = get_cosine_annealing_with_warmup_restarts_chill(
             optimizer,
             num_warmup_steps=s_conf["warmup_steps"],
-            num_training_steps=s_conf["train_steps"],
+            num_training_steps=train_steps,
             num_cycles=s_conf["lr_num_cycles"],
             gamma=s_conf["lr_gamma"],
             chill_steps=s_conf["chill_steps"],

@@ -98,8 +98,8 @@ def main(config):
         train_datasets.append(load_dataset(dataset_name, split="train"))
     train_dataset = concatenate_datasets(train_datasets)
     val_datasets = []
-    for dataset_name in ds_config["validation_datasets"]:
-        val_datasets.append(load_dataset(dataset_name, split="validation"))
+    for dataset_name in ds_config["val_datasets"]:
+        val_datasets.append(load_dataset(dataset_name, split="train"))
     val_dataset = concatenate_datasets(val_datasets)
 
     # Get tokenizer
@@ -125,10 +125,10 @@ def main(config):
         sampler=sampler,
         batch_size=config["dataset"]["batch_size"],
         fp16=config["model"]["fp16"],
-        no_timestamps_training=config["dataset"]["no_timestamps_training"],
+        no_timestamps_training=config["dataset"]["no_timestamp_training"],
         max_prompt_length=config["dataset"]["max_prompt_length"],
         prompt_use_rate=config["dataset"]["prompt_use_rate"],
-        no_timestamps_rate=config["dataset"]["no_timestamps_rate"],
+        no_timestamps_rate=config["dataset"]["no_timestamp_rate"],
         num_workers=os.cpu_count(),
         spec_augment=config["augmentation"]["spec_augment"]["apply"],
         time_mask_param=config["augmentation"]["spec_augment"]["time_mask_param"],
@@ -154,7 +154,7 @@ def main(config):
     optimizer = get_optimizer(whisper_model, config["optimizer"])
 
     # Get Scheduler
-    scheduler = get_scheduler(optimizer, config["lr_scheduler"])
+    scheduler = get_scheduler(optimizer, config["lr_scheduler"], config["training"]["train_steps"])
 
     # Train
     main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["training"])
