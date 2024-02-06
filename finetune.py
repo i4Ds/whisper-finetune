@@ -36,7 +36,7 @@ def main_loop(
     wandb.init(project="my_project", config=config)  # Initialize a new wandb run
     wandb.watch(model, log="all")  # Log all gradients and model parameters
 
-    min_loss = evaluate(model, dev_loader)
+    min_loss = evaluate(model, dev_loader, config["fp16"])
     print(f"Initial loss: {min_loss}")
     logging.info(f"eval\t0\t{min_loss}\t{scheduler.get_last_lr()[0]}")
     wandb.log({"Initial loss": min_loss})  # Log initial loss
@@ -52,6 +52,7 @@ def main_loop(
             config["accum_grad_steps"],
             config["train_only_decoder"],
             config["max_grad_norm"],
+            config["fp16"],
         )
         pbar.set_postfix({"loss": train_loss})
         logging.info(f"train\t{step}\t{train_loss}\t{scheduler.get_last_lr()[0]}")
@@ -147,8 +148,9 @@ def main(config):
         spec_augment=False,
     )
     # Load model
-    whisper_model = whisper.load_model(config["model"]["init_name"], "cuda")  # No point to train on CPU
-    whisper_model = whisper_model.half() if config["model"]["fp16"] else whisper_model
+    whisper_model = whisper.load_model(config["model"]["init_name"], "cpu")
+    whisper_model = whisper_model.half() if config["training"]["fp16"] else whisper_model
+    whisper_model = whisper_model.to("cuda")
 
     # Load optimizer
     optimizer = get_optimizer(whisper_model, config["optimizer"])

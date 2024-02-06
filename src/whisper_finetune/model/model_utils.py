@@ -21,24 +21,26 @@ def train_step(
     accum_grad_steps: int,
     train_only_decoder: bool,
     max_grad_norm: float,
+    fp16: bool,
 ) -> float:
     model.train()
     total_loss = 0.0
-    for _ in range(accum_grad_steps):
-        x, y_in, y_out = next(train_iter)
-        x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
+    with torch.cuda.amp.autocast(dtype=torch.float16 if fp16 else torch.float32):
+        for _ in range(accum_grad_steps):
+            x, y_in, y_out = next(train_iter)
+            x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
 
-        if train_only_decoder:
-            with torch.no_grad():
+            if train_only_decoder:
+                with torch.no_grad():
+                    audio_features = model.embed_audio(x)
+            else:
                 audio_features = model.embed_audio(x)
-        else:
-            audio_features = model.embed_audio(x)
-        logits = model.logits(y_in, audio_features=audio_features)
-        loss = F.cross_entropy(logits.transpose(1, 2), y_out)
+            logits = model.logits(y_in, audio_features=audio_features)
+            loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 
-        loss = loss / accum_grad_steps
-        loss.backward()
-        total_loss += loss.item()
+            loss = loss / accum_grad_steps
+            loss.backward()
+            total_loss += loss.item()
 
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
     optimizer.step()
@@ -49,22 +51,23 @@ def train_step(
 
 
 @torch.no_grad()
-def evaluate(model: Whisper, dev_loader: DataLoader) -> float:
+def evaluate(model: Whisper, dev_loader: DataLoader, fp16: bool) -> float:
     model.eval()
     total_loss = 0.0
-    for x, y_in, y_out in tqdm(dev_loader):
-        x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
-        logits = model(x, y_in)
+    with torch.cuda.amp.autocast(dtype=torch.float16 if fp16 else torch.float32):
+        for x, y_in, y_out in tqdm(dev_loader):
+            x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
+            logits = model(x, y_in)
 
-        if torch.isnan(logits).any():
-            print("Warning: logits nan")
+            if torch.isnan(logits).any():
+                print("Warning: logits nan")
 
-        loss = F.cross_entropy(logits.transpose(1, 2), y_out)
+            loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 
-        if torch.isnan(loss).any():
-            print("Warning: loss nan")
-        else:
-            total_loss += loss.item()
+            if torch.isnan(loss).any():
+                print("Warning: loss nan")
+            else:
+                total_loss += loss.item()
     return total_loss / len(dev_loader)
 
 
