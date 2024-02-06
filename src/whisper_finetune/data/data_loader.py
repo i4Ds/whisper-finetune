@@ -32,7 +32,6 @@ class AudioDataset(Dataset):
         self,
         hu_dataset: HU_Dataset,
         tokenizer: Tokenizer,
-        fp16: bool = True,
         device: Optional[torch.device] = None,  # Does not allow for multiprocessing.
         no_timestamps_training: bool = False,
         n_mels: int = 80,
@@ -46,7 +45,6 @@ class AudioDataset(Dataset):
     ) -> None:
         self.hu_dataset = hu_dataset
         self.tokenizer = tokenizer
-        self.fp16 = fp16
         self.n_mels = n_mels
         self.device = device
         self.no_timestamps_training = no_timestamps_training
@@ -166,9 +164,6 @@ class AudioDataset(Dataset):
             mel = self.freq_masking(mel)
             mel = torch.squeeze(mel, dim=0)
 
-        if self.fp16:
-            mel = mel.half()
-
         return mel
 
     def _construct_decoder_output(
@@ -228,7 +223,6 @@ def get_dataloader(
     batch_size: int = 1,
     n_mels: int = 80,
     sampler: Optional[torch.utils.data.sampler.Sampler] = None,
-    fp16: bool = True,
     device: Optional[torch.device] = None,  # Does not allow for multiprocessing.
     no_timestamps_training: bool = False,
     max_prompt_length: int = 223,
@@ -244,7 +238,6 @@ def get_dataloader(
     dataset = AudioDataset(
         hu_dataset,
         tokenizer,
-        fp16=fp16,
         device=device,
         no_timestamps_training=no_timestamps_training,
         n_mels=n_mels,

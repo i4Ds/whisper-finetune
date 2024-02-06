@@ -14,7 +14,7 @@ docker run --gpus all -v <PATH_TO_CODE>\whisper-finetune\src:/code -v <PATH_TO_W
 
 Docker Run Example:
 ```
-docker run --gpus all -v F:\FHNW\whisper-finetune\src:/code -v F:\FHNW\whisper-finetune\hf:/hf -v F:\FHNW\whisper-finetune\wandb:/wandb -v F:\FHNW\whisper-finetune\configs:/configs --env-file .env whisper python3 -m whisper_finetune.scripts.finetune --config /configs/small.yaml
+docker run --gpus all -v F:\FHNW\whisper-finetune\src:/code -v F:\FHNW\whisper-finetune\hf:/hf -v F:\FHNW\whisper-finetune\wandb:/wandb -v F:\FHNW\whisper-finetune\configs:/configs -v F:\FHNW\whisper-finetune\memory:/memory --env-file .env whisper python3 -m whisper_finetune.scripts.finetune --config /configs/small.yaml
 ```
 
 Sync WANDB:

@@ -36,7 +36,7 @@ def train_step(
     for _ in range(accum_grad_steps):
         x, y_in, y_out = next(train_iter)
         x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
-        with torch.cuda.amp.autocast(enabled=fp16):
+        with torch.autocast(device_type="cuda", enabled=fp16, dtype=torch.float16):
             if train_only_decoder:
                 with torch.no_grad():
                     audio_features = model.embed_audio(x)
@@ -45,12 +45,16 @@ def train_step(
             logits = model.logits(y_in, audio_features=audio_features)
             loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 
-        loss = loss / accum_grad_steps
+            loss = loss / accum_grad_steps
         if scaler:
             scaler.scale(loss).backward()
         else:
             loss.backward()
         total_loss += loss.item()
+
+    if scaler:
+        # Unscales the gradients of optimizer's assigned params in-place
+        scaler.unscale_(optimizer)
 
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
     if scaler:
