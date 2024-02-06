@@ -53,10 +53,7 @@ def main_loop(
             train_iter,
             optimizer,
             scheduler,
-            t_config["accum_grad_steps"],
-            t_config["train_only_decoder"],
-            t_config["max_grad_norm"],
-            t_config["mixed_precision"],
+            t_config
         )
         pbar.set_postfix({"loss": train_loss})
         logging.info(f"train\t{step}\t{train_loss}\t{scheduler.get_last_lr()[0]}")
@@ -199,6 +196,7 @@ def main(config):
     main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["save_dir"], config["training"])
 
     try:
+        Path("/memory").mkdir(parents=True, exist_ok=True)
         torch.cuda.memory._dump_snapshot("/memory/memory_snapshot.pt")
     except Exception as e:
         print(e)

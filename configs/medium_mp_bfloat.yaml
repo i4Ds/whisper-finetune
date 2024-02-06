@@ -1,6 +1,6 @@
 model:
   init_name: medium
-  bfloat16: True # If this is set, mixed_precision will use bfloat16
+  bfloat16: False # If this is set, mixed_precision will use bfloat16
 dataset:
   train_datasets: [i4ds/SDS_STT_SPC_mixed]
   val_datasets: [i4ds/SDS_STT_SPC_mixed]
@@ -10,11 +10,16 @@ dataset:
   max_prompt_length: 223
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
-  batch_size: 16
+  batch_size: 8
   batch_size_eval: 16
 lr_scheduler:
-  type: linear
+  type: cosine_with_warmup_restarts_chill
+  num_cycles: 3
   warmup_steps: 500
+  lr_gamma: 0.5
+  lr_num_cycles: 3
+  chill_steps: 100
+  chill_range: 0.02
 optimizer:
   type: adamw
   8bit: True
@@ -25,17 +30,18 @@ optimizer:
     eps: 1.0e-9
     amsgrad: False
 training:
-  accum_grad_steps: 3
+  accum_grad_steps: 2
   train_only_decoder: False
   warmup_steps: 500
   max_grad_norm: 1.0
   train_steps: 3
-  eval_steps: 1
+  eval_steps: 25
   eval_warmup: 0
   eval_steps_early: 500
   save_all_checkpoints: False
   mixed_precision: True
-  gradient_checkpointing: True
+  mp_dtype: bf16
+  gradient_checkpointing: False
 augmentation:
   spec_augment:
     apply: True

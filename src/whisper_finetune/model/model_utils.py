@@ -25,13 +25,17 @@ def train_step(
     train_iter: Iterator,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler.LambdaLR,
-    accum_grad_steps: int,
-    train_only_decoder: bool,
-    max_grad_norm: float,
-    mixed_precision: bool,
+    t_config: dict,
 ) -> float:
     model.train()
     total_loss = 0.0
+
+    # Read variables from t_config
+    mixed_precision = t_config['mixed_precision']
+    accum_grad_steps = t_config['accum_grad_steps']
+    train_only_decoder = t_config['train_only_decoder']
+    max_grad_norm = t_config['max_grad_norm']
+    mp_dtype = torch.float16 if t_config['mp_dtype'] == 'fp16' else torch.bfloat16
 
     # Setup grad scaler, if using fp16
     # bfloat16 is not supported by torch.cuda.amp.GradScaler: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
@@ -46,7 +50,7 @@ def train_step(
         x, y_in, y_out = next(train_iter)
         x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
         with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=torch.bfloat16 if model.is_bfloat else torch.float16
+            device_type="cuda", enabled=mixed_precision, dtype=mp_dtype
         ):
             if train_only_decoder:
                 with torch.no_grad():
@@ -80,13 +84,18 @@ def train_step(
 
 
 @torch.no_grad()
-def evaluate(model: Whisper, dev_loader: DataLoader, mixed_precision: bool) -> float:
+def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
     model.eval()
     total_loss = 0.0
+
+    # Read variables from t_config
+    mixed_precision = t_config['mixed_precision']
+    mp_dtype = torch.float16 if t_config['mp_dtype'] == 'fp16' else torch.bfloat16
+    
     for x, y_in, y_out in tqdm(dev_loader):
         x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
         with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=torch.bfloat16 if model.is_bfloat else torch.float16
+            device_type="cuda", enabled=mixed_precision, dtype=mp_dtype
         ):
             logits = model(x, y_in)
 
