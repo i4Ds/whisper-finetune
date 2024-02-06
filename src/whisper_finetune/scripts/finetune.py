@@ -31,6 +31,7 @@ def main_loop(
     dev_loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler.LambdaLR,
+    save_dir: str,
     config: dict,
 ) -> None:
     wandb.init(config=config)  # Initialize a new wandb run
@@ -67,20 +68,24 @@ def main_loop(
 
             if eval_loss < min_loss:
                 min_loss = eval_loss
-                save_model(model, f"{config['save_dir']}/best_model.pt")
+                save_model(model, f"{save_dir}/best_model.pt")
 
             if config["save_all_checkpoints"]:
-                save_model(model, f"{config['save_dir']}/step{step}.pt")
+                save_model(model, f"{save_dir}/step{step}.pt")
 
             logging.info(f"eval\t{step}\t{eval_loss}\t{scheduler.get_last_lr()[0]}")
-            save_model(model, f"{config['save_dir']}/last_model.pt")
-
-    wandb.finish()  # End the wandb run
+            save_model(model, f"{save_dir}/last_model.pt")
 
 
 def main(config):
     set_seed(config["seed"])
+    # SETUP SOME STUFF
+    # Start GPU memory profiling
+    torch.cuda.memory._record_memory_history(
+        max_entries=100000,
+    )
     torch.backends.cudnn.benchmark = False
+
     Path(config["save_dir"]).mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         filename=f"{config['save_dir']}/model.log",
@@ -124,6 +129,7 @@ def main(config):
         hu_dataset=train_dataset,
         tokenizer=tokenizer,
         sampler=sampler,
+        n_mels=128 if "v3" in config["model"]["init_name"] else 80,
         batch_size=config["dataset"]["batch_size"],
         fp16=config["model"]["fp16"],
         no_timestamps_training=config["dataset"]["no_timestamp_training"],
@@ -139,7 +145,8 @@ def main(config):
     val_loader = get_dataloader(
         hu_dataset=val_dataset,
         tokenizer=tokenizer,
-        batch_size=16,
+        n_mels=128 if "v3" in config["model"]["init_name"] else 80,
+        batch_size=config["dataset"]["batch_size_eval"],
         fp16=config["model"]["fp16"],
         no_timestamps_training=True,
         prompt_use_rate=0,
@@ -147,9 +154,10 @@ def main(config):
         num_workers=os.cpu_count(),
         spec_augment=False,
     )
+
     # Load model
     whisper_model = whisper.load_model(config["model"]["init_name"], "cpu")
-    whisper_model = whisper_model.half() if config["training"]["fp16"] else whisper_model
+    whisper_model = whisper_model  # .half() if config["model"]["fp16"] else whisper_model
     whisper_model = whisper_model.to("cuda")
 
     # Load optimizer
@@ -159,7 +167,17 @@ def main(config):
     scheduler = get_scheduler(optimizer, config["lr_scheduler"], config["training"]["train_steps"])
 
     # Train
-    main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["training"])
+    main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["save_dir"], config["training"])
+
+    try:
+        torch.cuda.memory._dump_snapshot("memory_snapshot.pt")
+    except Exception as e:
+        print(e)
+
+    # Stop recording memory snapshot history.
+    torch.cuda.memory._record_memory_history(enabled=None)
+
+    wandb.finish()
 
 
 if __name__ == "__main__":

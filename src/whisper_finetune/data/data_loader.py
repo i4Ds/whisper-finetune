@@ -35,6 +35,7 @@ class AudioDataset(Dataset):
         fp16: bool = True,
         device: Optional[torch.device] = None,  # Does not allow for multiprocessing.
         no_timestamps_training: bool = False,
+        n_mels: int = 80,
         max_prompt_length: int = 223,  # The maximum number of tokens to use for the prompt
         prompt_use_rate: float = 0.5,
         no_timestamps_rate: float = 0.5,
@@ -46,6 +47,7 @@ class AudioDataset(Dataset):
         self.hu_dataset = hu_dataset
         self.tokenizer = tokenizer
         self.fp16 = fp16
+        self.n_mels = n_mels
         self.device = device
         self.no_timestamps_training = no_timestamps_training
         self.max_prompt_length = max_prompt_length
@@ -153,7 +155,7 @@ class AudioDataset(Dataset):
     def _calculate_mel(
         self, audio_array: ndarray, next_partial_segment_start: Optional[float], no_timestamps: bool
     ) -> torch.Tensor:
-        mel = log_mel_spectrogram(audio_array, device=self.device)
+        mel = log_mel_spectrogram(audio_array, n_mels=self.n_mels, device=self.device)
         if no_timestamps and next_partial_segment_start is not None:
             mel = mel[:, : int(next_partial_segment_start * self.num_frames_per_second)]
         mel = pad_or_trim(mel, N_FRAMES)
@@ -224,6 +226,7 @@ def get_dataloader(
     hu_dataset: HU_Dataset,
     tokenizer: Tokenizer,
     batch_size: int = 1,
+    n_mels: int = 80,
     sampler: Optional[torch.utils.data.sampler.Sampler] = None,
     fp16: bool = True,
     device: Optional[torch.device] = None,  # Does not allow for multiprocessing.
@@ -244,6 +247,7 @@ def get_dataloader(
         fp16=fp16,
         device=device,
         no_timestamps_training=no_timestamps_training,
+        n_mels=n_mels,
         max_prompt_length=max_prompt_length,
         prompt_use_rate=prompt_use_rate,
         no_timestamps_rate=no_timestamps_rate,

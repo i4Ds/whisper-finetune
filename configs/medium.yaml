@@ -1,6 +1,6 @@
 model:
   init_name: medium
-  fp16: True
+  fp16: False
 dataset:
   train_datasets: [i4ds/STT_SRG_DEBUG]
   val_datasets: [i4ds/STT_SRG_DEBUG]
@@ -28,16 +28,16 @@ optimizer:
     eps: 1.0e-9
     amsgrad: False
 training:
-  accum_grad_steps: 2
+  accum_grad_steps: 3
   train_only_decoder: False
   warmup_steps: 500
   max_grad_norm: 1.0
-  train_steps: 2
+  train_steps: 3
   eval_steps: 1
   eval_warmup: 0
   eval_steps_early: 500
   save_all_checkpoints: False
-  fp16: False
+  fp16: True
 augmentation:
   spec_augment:
     apply: True
