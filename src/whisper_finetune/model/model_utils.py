@@ -25,7 +25,7 @@ def train_step(
 ) -> float:
     model.train()
     total_loss = 0.0
-    with torch.cuda.amp.autocast(dtype=torch.float16 if fp16 else torch.float32):
+    with torch.cuda.amp.autocast(enabled=fp16):
         for _ in range(accum_grad_steps):
             x, y_in, y_out = next(train_iter)
             x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
@@ -54,7 +54,7 @@ def train_step(
 def evaluate(model: Whisper, dev_loader: DataLoader, fp16: bool) -> float:
     model.eval()
     total_loss = 0.0
-    with torch.cuda.amp.autocast(dtype=torch.float16 if fp16 else torch.float32):
+    with torch.cuda.amp.autocast(enabled=fp16):
         for x, y_in, y_out in tqdm(dev_loader):
             x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
             logits = model(x, y_in)
