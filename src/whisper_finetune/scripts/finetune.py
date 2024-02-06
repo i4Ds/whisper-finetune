@@ -40,7 +40,7 @@ def main_loop(
     wandb.init(config=t_config)  # Initialize a new wandb run
     wandb.watch(model, log="all")  # Log all gradients and model parameters
 
-    min_loss = evaluate(model, dev_loader, t_config["mixed_precision"])
+    min_loss = evaluate(model, dev_loader, t_config)
     print(f"Initial loss: {min_loss}")
     logging.info(f"eval\t0\t{min_loss}\t{scheduler.get_last_lr()[0]}")
     wandb.log({"Initial loss": min_loss})  # Log initial loss
@@ -48,13 +48,7 @@ def main_loop(
     pbar = tqdm(range(1, t_config["train_steps"] + 1))
     train_iter = infinite_iter(train_loader)
     for step in pbar:
-        train_loss = train_step(
-            model,
-            train_iter,
-            optimizer,
-            scheduler,
-            t_config
-        )
+        train_loss = train_step(model, train_iter, optimizer, scheduler, t_config)
         pbar.set_postfix({"loss": train_loss})
         logging.info(f"train\t{step}\t{train_loss}\t{scheduler.get_last_lr()[0]}")
         wandb.log({"Train loss": train_loss})  # Log training loss
@@ -62,7 +56,7 @@ def main_loop(
         if ((step <= t_config["eval_warmup"]) and (step % t_config["eval_steps_early"] == 0)) or (
             (step > t_config["eval_warmup"]) and (step % t_config["eval_steps"] == 0)
         ):
-            eval_loss = evaluate(model, dev_loader, t_config["mixed_precision"])
+            eval_loss = evaluate(model, dev_loader, t_config)
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
             wandb.log({"Validation loss": eval_loss})  # Log validation loss
 
