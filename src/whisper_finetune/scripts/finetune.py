@@ -209,9 +209,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = read_config(args.config)
     # Get env varaibles
-    world_size = os.environ.get("WORLD_SIZE", 1)
-    rank = os.environ.get("RANK", 0)
-    gpus_per_node = os.environ.get("GPUS_PER_NODE", 1)
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    rank = int(os.environ.get("RANK", 0))
+    gpus_per_node = int(os.environ.get("GPUS_PER_NODE", 1))
     assert gpus_per_node == torch.cuda.device_count()
     # Add env variables to config
     config["world_size"] = world_size
