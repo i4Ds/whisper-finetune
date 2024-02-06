@@ -61,7 +61,7 @@ def main_loop(
         if ((step <= config["eval_warmup"]) and (step % config["eval_steps_early"] == 0)) or (
             (step > config["eval_warmup"]) and (step % config["eval_steps"] == 0)
         ):
-            eval_loss = evaluate(model, dev_loader)
+            eval_loss = evaluate(model, dev_loader, config["fp16"])
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
             wandb.log({"Validation loss": eval_loss})  # Log validation loss
 
