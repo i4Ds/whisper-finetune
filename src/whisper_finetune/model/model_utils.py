@@ -25,11 +25,18 @@ def train_step(
 ) -> float:
     model.train()
     total_loss = 0.0
-    with torch.cuda.amp.autocast(enabled=fp16):
-        for _ in range(accum_grad_steps):
-            x, y_in, y_out = next(train_iter)
-            x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
 
+    # Setup grad scaler, if using fp16
+    if fp16:
+        print("Detected fp16 training. Using torch.cuda.amp.GradScaler.")
+        scaler = torch.cuda.amp.GradScaler()
+    else:
+        scaler = None
+
+    for _ in range(accum_grad_steps):
+        x, y_in, y_out = next(train_iter)
+        x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
+        with torch.cuda.amp.autocast(enabled=fp16):
             if train_only_decoder:
                 with torch.no_grad():
                     audio_features = model.embed_audio(x)
@@ -38,12 +45,19 @@ def train_step(
             logits = model.logits(y_in, audio_features=audio_features)
             loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 
-            loss = loss / accum_grad_steps
+        loss = loss / accum_grad_steps
+        if scaler:
+            scaler.scale(loss).backward()
+        else:
             loss.backward()
-            total_loss += loss.item()
+        total_loss += loss.item()
 
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-    optimizer.step()
+    if scaler:
+        scaler.step(optimizer)
+        scaler.update()
+    else:
+        optimizer.step()
     scheduler.step()
     optimizer.zero_grad()
 
@@ -54,9 +68,9 @@ def train_step(
 def evaluate(model: Whisper, dev_loader: DataLoader, fp16: bool) -> float:
     model.eval()
     total_loss = 0.0
-    with torch.cuda.amp.autocast(enabled=fp16):
-        for x, y_in, y_out in tqdm(dev_loader):
-            x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
+    for x, y_in, y_out in tqdm(dev_loader):
+        x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
+        with torch.cuda.amp.autocast(enabled=fp16):
             logits = model(x, y_in)
 
             if torch.isnan(logits).any():
@@ -64,10 +78,10 @@ def evaluate(model: Whisper, dev_loader: DataLoader, fp16: bool) -> float:
 
             loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 
-            if torch.isnan(loss).any():
-                print("Warning: loss nan")
-            else:
-                total_loss += loss.item()
+        if torch.isnan(loss).any():
+            print("Warning: loss nan")
+        else:
+            total_loss += loss.item()
     return total_loss / len(dev_loader)
 
 
