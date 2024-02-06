@@ -33,7 +33,7 @@ def main_loop(
     scheduler: torch.optim.lr_scheduler.LambdaLR,
     config: dict,
 ) -> None:
-    wandb.init(project="my_project", config=config)  # Initialize a new wandb run
+    wandb.init(config=config)  # Initialize a new wandb run
     wandb.watch(model, log="all")  # Log all gradients and model parameters
 
     min_loss = evaluate(model, dev_loader, config["fp16"])
