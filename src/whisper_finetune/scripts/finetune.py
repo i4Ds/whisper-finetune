@@ -15,8 +15,11 @@ from whisper.tokenizer import get_tokenizer
 import wandb
 from whisper_finetune.data.data_loader import get_dataloader
 from whisper_finetune.model.model_utils import (
+    CheckpointedAudioEncoder,
+    CheckpointedTextDecoder,
     evaluate,
     infinite_iter,
+    load_model_and_set_heads,
     save_model,
     train_step,
 )
@@ -32,17 +35,17 @@ def main_loop(
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler.LambdaLR,
     save_dir: str,
-    config: dict,
+    t_config: dict,
 ) -> None:
-    wandb.init(config=config)  # Initialize a new wandb run
+    wandb.init(config=t_config)  # Initialize a new wandb run
     wandb.watch(model, log="all")  # Log all gradients and model parameters
 
-    min_loss = evaluate(model, dev_loader, config["fp16"])
+    min_loss = evaluate(model, dev_loader, t_config["mixed_precision"])
     print(f"Initial loss: {min_loss}")
     logging.info(f"eval\t0\t{min_loss}\t{scheduler.get_last_lr()[0]}")
     wandb.log({"Initial loss": min_loss})  # Log initial loss
 
-    pbar = tqdm(range(1, config["train_steps"] + 1))
+    pbar = tqdm(range(1, t_config["train_steps"] + 1))
     train_iter = infinite_iter(train_loader)
     for step in pbar:
         train_loss = train_step(
@@ -50,19 +53,19 @@ def main_loop(
             train_iter,
             optimizer,
             scheduler,
-            config["accum_grad_steps"],
-            config["train_only_decoder"],
-            config["max_grad_norm"],
-            config["fp16"],
+            t_config["accum_grad_steps"],
+            t_config["train_only_decoder"],
+            t_config["max_grad_norm"],
+            t_config["mixed_precision"],
         )
         pbar.set_postfix({"loss": train_loss})
         logging.info(f"train\t{step}\t{train_loss}\t{scheduler.get_last_lr()[0]}")
         wandb.log({"Train loss": train_loss})  # Log training loss
 
-        if ((step <= config["eval_warmup"]) and (step % config["eval_steps_early"] == 0)) or (
-            (step > config["eval_warmup"]) and (step % config["eval_steps"] == 0)
+        if ((step <= t_config["eval_warmup"]) and (step % t_config["eval_steps_early"] == 0)) or (
+            (step > t_config["eval_warmup"]) and (step % t_config["eval_steps"] == 0)
         ):
-            eval_loss = evaluate(model, dev_loader, config["fp16"])
+            eval_loss = evaluate(model, dev_loader, t_config["mixed_precision"])
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
             wandb.log({"Validation loss": eval_loss})  # Log validation loss
 
@@ -70,7 +73,7 @@ def main_loop(
                 min_loss = eval_loss
                 save_model(model, f"{save_dir}/best_model.pt")
 
-            if config["save_all_checkpoints"]:
+            if t_config["save_all_checkpoints"]:
                 save_model(model, f"{save_dir}/step{step}.pt")
 
             logging.info(f"eval\t{step}\t{eval_loss}\t{scheduler.get_last_lr()[0]}")
@@ -155,6 +158,36 @@ def main(config):
 
     # Load model
     whisper_model = whisper.load_model(config["model"]["init_name"], device="cuda")
+    if config["model"]["bfloat16"]:
+        whisper_model = whisper_model.bfloat16()
+        whisper_model.is_bfloat = True
+    else:
+        whisper_model.is_bfloat = False
+
+    print("Is model bfloat16?", whisper_model.is_bfloat)
+
+    # If gradient checkpointing is enabled, wrap the model with checkpointing
+    if config["training"]["gradient_checkpointing"]:
+        del whisper_model.encoder
+        whisper_model.encoder = CheckpointedAudioEncoder(
+            whisper_model.dims.n_mels,
+            whisper_model.dims.n_audio_ctx,
+            whisper_model.dims.n_audio_state,
+            whisper_model.dims.n_audio_head,
+            whisper_model.dims.n_audio_layer,
+        )
+        """
+        Does not work
+        whisper_model.decoder = CheckpointedTextDecoder(
+            whisper_model.dims.n_vocab,
+            whisper_model.dims.n_text_ctx,
+            whisper_model.dims.n_text_state,
+            whisper_model.dims.n_text_head,
+            whisper_model.dims.n_text_layer,
+        )
+        """
+
+        whisper_model = load_model_and_set_heads(whisper_model, config["model"]["init_name"], device="cuda")
 
     # Load optimizer
     optimizer = get_optimizer(whisper_model, config["optimizer"])

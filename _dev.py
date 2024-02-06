@@ -76,6 +76,23 @@ def audiodataset():
 def whisper():
     import whisper
 
+    from whisper_finetune.model.model_utils import CheckpointedAudioEncoder
+
+    whisper_model = whisper.load_model("tiny", device="cuda")
+    print(whisper_model.dims)
+
+    whisper_model.encoder = CheckpointedAudioEncoder(
+        whisper_model.dims.n_mels,
+        whisper_model.dims.n_audio_ctx,
+        whisper_model.dims.n_audio_state,
+        whisper_model.dims.n_audio_head,
+        whisper_model.dims.n_audio_layer,
+    )
+
+
+def whisper_decode():
+    import whisper
+
     hf_dataset = load_dataset("i4ds/stt4sg-350_train_all_fold_4", split="train")
     hf_dataset = hf_dataset.with_format(type="torch")
     model = whisper.load_model("large-v3")
@@ -86,3 +103,7 @@ def whisper():
     tokens = [item for sublist in tokens for item in sublist]
     tokenizer = get_tokenizer(multilingual=True, task="transcribe")
     print(tokenizer.decode_with_timestamps(tokens))
+
+
+if __name__ == "__main__":
+    whisper()
