@@ -30,7 +30,6 @@ optimizer:
 training:
   accum_grad_steps: 2
   train_only_decoder: False
-  warmup_steps: 500
   max_grad_norm: 1.0
   train_steps: 2
   eval_steps: 1
