@@ -1,6 +1,6 @@
 model:
-  init_name: small
-  fp16: True
+  init_name: tiny
+  fp16: False
 dataset:
   train_datasets: [i4ds/STT_SRG_DEBUG]
   val_datasets: [i4ds/STT_SRG_DEBUG]
