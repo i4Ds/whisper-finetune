@@ -1,9 +1,10 @@
 model:
   init_name: medium
-  fp16: False
 dataset:
   train_datasets: [i4ds/STT_SRG_DEBUG]
   val_datasets: [i4ds/STT_SRG_DEBUG]
+  train_split_name: "train"
+  valid_split_name: "train"
   no_timestamp_training: False
   max_prompt_length: 223
   prompt_use_rate: 0.5

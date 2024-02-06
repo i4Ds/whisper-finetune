@@ -101,11 +101,11 @@ def main(config):
     ds_config = config["dataset"]
     train_datasets = []
     for dataset_name in ds_config["train_datasets"]:
-        train_datasets.append(load_dataset(dataset_name, split="train"))
+        train_datasets.append(load_dataset(dataset_name, split=ds_config["train_split_name"]))
     train_dataset = concatenate_datasets(train_datasets)
     val_datasets = []
     for dataset_name in ds_config["val_datasets"]:
-        val_datasets.append(load_dataset(dataset_name, split="train"))
+        val_datasets.append(load_dataset(dataset_name, split=ds_config["valid_split_name"]))
     val_dataset = concatenate_datasets(val_datasets)
 
     # Get tokenizer
@@ -131,7 +131,6 @@ def main(config):
         sampler=sampler,
         n_mels=128 if "v3" in config["model"]["init_name"] else 80,
         batch_size=config["dataset"]["batch_size"],
-        fp16=config["model"]["fp16"],
         no_timestamps_training=config["dataset"]["no_timestamp_training"],
         max_prompt_length=config["dataset"]["max_prompt_length"],
         prompt_use_rate=config["dataset"]["prompt_use_rate"],
@@ -147,7 +146,6 @@ def main(config):
         tokenizer=tokenizer,
         n_mels=128 if "v3" in config["model"]["init_name"] else 80,
         batch_size=config["dataset"]["batch_size_eval"],
-        fp16=config["model"]["fp16"],
         no_timestamps_training=True,
         prompt_use_rate=0,
         no_timestamps_rate=0,
@@ -156,9 +154,7 @@ def main(config):
     )
 
     # Load model
-    whisper_model = whisper.load_model(config["model"]["init_name"], "cpu")
-    whisper_model = whisper_model  # .half() if config["model"]["fp16"] else whisper_model
-    whisper_model = whisper_model.to("cuda")
+    whisper_model = whisper.load_model(config["model"]["init_name"], device="cuda")
 
     # Load optimizer
     optimizer = get_optimizer(whisper_model, config["optimizer"])
@@ -170,7 +166,7 @@ def main(config):
     main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["save_dir"], config["training"])
 
     try:
-        torch.cuda.memory._dump_snapshot("memory_snapshot.pt")
+        torch.cuda.memory._dump_snapshot("/memory/memory_snapshot.pt")
     except Exception as e:
         print(e)
 
