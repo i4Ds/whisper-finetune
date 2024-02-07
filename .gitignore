@@ -164,3 +164,7 @@ hf/
 wandb/
 logs/*
 **.pt
+
+.env-dataset
+
+.hu_ds_download/
