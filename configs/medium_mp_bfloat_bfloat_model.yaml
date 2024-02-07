@@ -35,7 +35,7 @@ training:
   eval_steps_early: 500
   save_all_checkpoints: False
   mixed_precision: True
-  mp_dtype: bf16
+  mp_dtype: fp16
   gradient_checkpointing: False
 augmentation:
   spec_augment:
