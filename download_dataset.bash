@@ -7,7 +7,7 @@ DATASET_NAME="i4ds/SDS_STT_SPC_mixed"
 python3 -m venv .hu_ds_download
 
 # Get env variables
-export $(cat .env | xargs)
+export $(cat .env-dataset | xargs)
 
 # Activate the virtual environment
 source .hu_ds_download/bin/activate
