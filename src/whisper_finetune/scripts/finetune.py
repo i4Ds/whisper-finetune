@@ -37,7 +37,6 @@ def main_loop(
     save_dir: str,
     t_config: dict,
 ) -> None:
-    wandb.init(config=t_config)  # Initialize a new wandb run
     wandb.watch(model, log="all")  # Log all gradients and model parameters
 
     min_loss = evaluate(model, dev_loader, t_config)
@@ -76,9 +75,10 @@ def main(config):
     # SETUP SOME STUFF
     # Start GPU memory profiling
     torch.cuda.memory._record_memory_history(
-        max_entries=100000,
+        max_entries=1000000,
     )
     torch.backends.cudnn.benchmark = False
+    wandb.init(config=config)
 
     Path(config["save_dir"]).mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
@@ -190,8 +190,16 @@ def main(config):
     main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["save_dir"], config["training"])
 
     try:
-        Path("/memory").mkdir(parents=True, exist_ok=True)
-        torch.cuda.memory._dump_snapshot("/memory/memory_snapshot.pt")
+        file_name = "_".join(
+            [str(config['model']['bfloat16']), 
+             str(config['training']['mixed_precision']), 
+             str(config['training']['mp_dtype']), 
+             str(config['training']['gradient_checkpointing'])])
+        try:
+            torch.cuda.memory._dump_snapshot(f"/memory/{file_name}.pt")
+        except Exception as e:
+            print(e)
+            torch.cuda.memory._dump_snapshot(f"memory/{file_name}.pt")
     except Exception as e:
         print(e)
 

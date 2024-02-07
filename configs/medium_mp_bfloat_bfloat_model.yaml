@@ -29,8 +29,8 @@ training:
   accum_grad_steps: 2
   train_only_decoder: False
   max_grad_norm: 1.0
-  train_steps: 2250
-  eval_steps: 25
+  train_steps: 2000
+  eval_steps: 200
   eval_warmup: 0
   eval_steps_early: 500
   save_all_checkpoints: False
