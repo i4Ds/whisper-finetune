@@ -31,11 +31,11 @@ def train_step(
     total_loss = 0.0
 
     # Read variables from t_config
-    mixed_precision = t_config['mixed_precision']
-    accum_grad_steps = t_config['accum_grad_steps']
-    train_only_decoder = t_config['train_only_decoder']
-    max_grad_norm = t_config['max_grad_norm']
-    mp_dtype = torch.float16 if t_config['mp_dtype'] == 'fp16' else torch.bfloat16
+    mixed_precision = t_config["mixed_precision"]
+    accum_grad_steps = t_config["accum_grad_steps"]
+    train_only_decoder = t_config["train_only_decoder"]
+    max_grad_norm = t_config["max_grad_norm"]
+    mp_dtype = torch.float16 if t_config["mp_dtype"] == "fp16" else torch.bfloat16
 
     # Setup grad scaler, if using fp16
     # bfloat16 is not supported by torch.cuda.amp.GradScaler: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
@@ -49,9 +49,7 @@ def train_step(
     for _ in range(accum_grad_steps):
         x, y_in, y_out = next(train_iter)
         x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
-        with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=mp_dtype
-        ):
+        with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mp_dtype):
             if train_only_decoder:
                 with torch.no_grad():
                     audio_features = model.embed_audio(x)
@@ -89,14 +87,12 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
     total_loss = 0.0
 
     # Read variables from t_config
-    mixed_precision = t_config['mixed_precision']
-    mp_dtype = torch.float16 if t_config['mp_dtype'] == 'fp16' else torch.bfloat16
-    
+    mixed_precision = t_config["mixed_precision"]
+    mp_dtype = torch.float16 if t_config["mp_dtype"] == "fp16" else torch.bfloat16
+
     for x, y_in, y_out in tqdm(dev_loader):
         x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
-        with torch.autocast(
-            device_type="cuda", enabled=mixed_precision, dtype=mp_dtype
-        ):
+        with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mp_dtype):
             logits = model(x, y_in)
 
             if torch.isnan(logits).any():
@@ -157,6 +153,10 @@ class CheckpointedAudioEncoder(AudioEncoder):
 
 
 class CheckpointedTextDecoder(TextDecoder):
+    def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int):
+        # Call the initializer of the parent class (TextDecoder)
+        super().__init__(n_vocab, n_ctx, n_state, n_head, n_layer)
+
     def forward(self, x: Tensor, xa: Tensor, kv_cache: Optional[dict] = None):
         """
         x : torch.LongTensor, shape = (batch_size, <= n_ctx)
@@ -169,8 +169,8 @@ class CheckpointedTextDecoder(TextDecoder):
         x = x.to(xa.dtype)
 
         for block in self.blocks:
-            p_block = partial(block, xa=xa, mask=self.mask, kv_cache=kv_cache)
-            x = checkpoint(p_block, x)
+            block_p = partial(block, xa=xa, mask=self.mask, kv_cache=kv_cache)
+            x = checkpoint(block_p, x, use_reentrant=False)
 
         x = self.ln(x)
         logits = (x @ torch.transpose(self.token_embedding.weight.to(x.dtype), 0, 1)).float()
