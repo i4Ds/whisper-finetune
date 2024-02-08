@@ -148,7 +148,7 @@ def main(config):
     )
 
     # Load model
-    whisper_model = whisper.load_model(config["model"]["init_name"], device="cuda")
+    whisper_model = whisper.load_model(config["model"]["init_name"], device="cpu")
     if config["model"]["bfloat16"]:
         whisper_model = whisper_model.bfloat16()
         whisper_model.is_bfloat = True
@@ -167,8 +167,7 @@ def main(config):
             whisper_model.dims.n_audio_head,
             whisper_model.dims.n_audio_layer,
         )
-        """
-        Does not work
+        del whisper_model.decoder
         whisper_model.decoder = CheckpointedTextDecoder(
             whisper_model.dims.n_vocab,
             whisper_model.dims.n_text_ctx,
@@ -176,9 +175,10 @@ def main(config):
             whisper_model.dims.n_text_head,
             whisper_model.dims.n_text_layer,
         )
-        """
 
         whisper_model = load_model_and_set_heads(whisper_model, config["model"]["init_name"], device="cuda")
+    else:
+        whisper_model.to("cuda")
 
     # Load optimizer
     optimizer = get_optimizer(whisper_model, config["optimizer"])
@@ -191,10 +191,13 @@ def main(config):
 
     try:
         file_name = "_".join(
-            [str(config['model']['bfloat16']), 
-             str(config['training']['mixed_precision']), 
-             str(config['training']['mp_dtype']), 
-             str(config['training']['gradient_checkpointing'])])
+            [
+                str(config["model"]["bfloat16"]),
+                str(config["training"]["mixed_precision"]),
+                str(config["training"]["mp_dtype"]),
+                str(config["training"]["gradient_checkpointing"]),
+            ]
+        )
         try:
             torch.cuda.memory._dump_snapshot(f"/memory/{file_name}.pt")
         except Exception as e:
