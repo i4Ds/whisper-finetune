@@ -62,25 +62,32 @@ def main_loop(
             if eval_loss < min_loss:
                 min_loss = eval_loss
                 save_model(model, f"{save_dir}/best_model.pt")
+                wandb.save(f"{save_dir}/best_model.pt")  # Save best model to wandb
 
             if t_config["save_all_checkpoints"]:
                 save_model(model, f"{save_dir}/step{step}.pt")
 
             logging.info(f"eval\t{step}\t{eval_loss}\t{scheduler.get_last_lr()[0]}")
-            save_model(model, f"{save_dir}/last_model.pt")
 
+    save_model(model, f"{save_dir}/last_model.pt")
+    wandb.save(f"{save_dir}/last_model.pt")  # Save last model to wandb
 
 def main(config):
     set_seed(config["seed"])
-    # SETUP SOME STUFF
     # Start GPU memory profiling
-    torch.cuda.memory._record_memory_history(
-        max_entries=1000000,
-    )
+    try:
+        torch.cuda.memory._record_memory_history(
+            max_entries=1000000,
+        )
+    except Exception as e:
+        print("Memory history recording failed:", e)
     torch.backends.cudnn.benchmark = False
     wandb.init(config=config)
 
+    # Create save directory
     Path(config["save_dir"]).mkdir(parents=True, exist_ok=True)
+
+    # Save config
     logging.basicConfig(
         filename=f"{config['save_dir']}/model.log",
         encoding="utf-8",
@@ -88,8 +95,11 @@ def main(config):
         format="%(asctime)s\t%(message)s",
     )
 
-    # Setup distributed training
-    dist_is_init = distributed_setup(rank=config["rank"], world_size=config["world_size"])
+    # Print CUDA version, PyTorch version, and GPU name
+    print("CUDA version:", torch.version.cuda)
+    print("PyTorch version:", torch.__version__)
+    print("GPU Name:", torch.cuda.get_device_name(0))
+    print("GPU memory:", torch.cuda.get_device_properties(0).total_memory / 1024 ** 3, "GB")
 
     # Get datasets
     ds_config = config["dataset"]
@@ -129,7 +139,7 @@ def main(config):
         max_prompt_length=config["dataset"]["max_prompt_length"],
         prompt_use_rate=config["dataset"]["prompt_use_rate"],
         no_timestamps_rate=config["dataset"]["no_timestamp_rate"],
-        num_workers=os.cpu_count(),
+        num_workers=min(os.cpu_count(), 8),
         spec_augment=config["augmentation"]["spec_augment"]["apply"],
         time_mask_param=config["augmentation"]["spec_augment"]["time_mask_param"],
         freq_mask_param=config["augmentation"]["spec_augment"]["freq_mask_param"],
@@ -143,7 +153,7 @@ def main(config):
         no_timestamps_training=True,
         prompt_use_rate=0,
         no_timestamps_rate=0,
-        num_workers=os.cpu_count(),
+        num_workers=min(os.cpu_count(), 8),
         spec_augment=False,
     )
 
@@ -201,32 +211,38 @@ def main(config):
         try:
             torch.cuda.memory._dump_snapshot(f"/memory/{file_name}.pt")
         except Exception as e:
-            print(e)
+            os.makedirs("memory", exist_ok=True)
             torch.cuda.memory._dump_snapshot(f"memory/{file_name}.pt")
     except Exception as e:
         print(e)
 
-    # Stop recording memory snapshot history.
-    torch.cuda.memory._record_memory_history(enabled=None)
+    try:
+        torch.cuda.memory._record_memory_history(enabled=None)
+    except Exception as e:
+        pass
 
     wandb.finish()
 
 
 if __name__ == "__main__":
+    # Setup dist if needed
+    world_size = int(os.environ["WORLD_SIZE"])
+    rank = int(os.environ["SLURM_PROCID"])
+    gpus_per_node = int(os.environ["SLURM_GPUS_ON_NODE"])
+    
+    assert gpus_per_node == torch.cuda.device_count(), f"GPUs per node {gpus_per_node} != {torch.cuda.device_count()}"
+    
+    print(f"Hello from rank {rank} of {world_size} on {gethostname()} where there are" \
+        f" {gpus_per_node} allocated GPUs per node.", flush=True)
+        
+    dist_is_init = distributed_setup(rank=rank, world_size=world_size, gpus_per_node=gpus_per_node)
+    if rank == 0: print(f"Group initialized? {dist.is_initialized()}", flush=True)
+    
     import argparse
 
     parser = argparse.ArgumentParser(description="Script Configuration")
     parser.add_argument("--config", type=str, required=True, help="Path to the configuration YAML file")
     args = parser.parse_args()
     config = read_config(args.config)
-    # Get env varaibles
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    rank = int(os.environ.get("RANK", 0))
-    gpus_per_node = int(os.environ.get("GPUS_PER_NODE", 1))
-    assert gpus_per_node == torch.cuda.device_count()
-    # Add env variables to config
-    config["world_size"] = world_size
-    config["rank"] = rank
-    config["gpus_per_node"] = gpus_per_node
 
     main(config)

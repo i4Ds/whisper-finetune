@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the dataset to download and your Hugging Face token
-DATASET_NAME="i4ds/SDS_STT_SPC_mixed"
+DATASET_NAME="i4ds/sds-stt-spc-train-fold_0"
 
 # Create a virtual environment in the current directory
 python3 -m venv .hu_ds_download
