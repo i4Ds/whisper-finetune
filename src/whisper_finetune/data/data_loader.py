@@ -235,6 +235,7 @@ def get_dataloader(
     freq_mask_param: int = 27,
     p: float = 1.0,
 ) -> DataLoader:
+    print(f"Found {len(hu_dataset)} records in the dataset.")
     dataset = AudioDataset(
         hu_dataset,
         tokenizer,

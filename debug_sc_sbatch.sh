@@ -2,10 +2,10 @@
 #SBATCH --job-name=whisper_finetune     # create a short name for your job
 #SBATCH --cpus-per-task=8                  #This is the number of cores reserved
 #SBATCH --mem-per-cpu=4G              #This is the memory reserved per core.
-#SBATCH --time=84:00:00         # total run time limit (HH:MM:SS)
+#SBATCH --time=00:30:00         # total run time limit (HH:MM:SS)
 #SBATCH --partition=a100       # or titanx
 #SBATCH --gres=gpu:1            # number of gpus per node
-#SBATCH --qos=1week	           # qos level
+#SBATCH --qos=30min            # qos level
 
 export MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 export WORLD_SIZE=$((1 * $SLURM_NTASKS_PER_NODE))
