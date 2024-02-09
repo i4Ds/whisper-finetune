@@ -5,6 +5,7 @@ from pathlib import Path
 from socket import gethostname
 
 import torch
+import torch.distributed as dist
 import whisper
 from datasets import concatenate_datasets, load_dataset
 from torch.utils.data import DataLoader
@@ -116,7 +117,8 @@ def main(config):
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
 
     # Create distributed sampler
-    if dist_is_init:
+    if dist.is_initialized():
+        print("Using distributed sampler")
         # Add distributed sampler
         sampler = torch.utils.data.distributed.DistributedSampler(
             train_dataset, num_replicas=config["world_size"], rank=config["rank"]
@@ -226,16 +228,16 @@ def main(config):
 
 if __name__ == "__main__":
     # Setup dist if needed
-    world_size = int(os.environ["WORLD_SIZE"])
-    rank = int(os.environ["SLURM_PROCID"])
-    gpus_per_node = int(os.environ["SLURM_GPUS_ON_NODE"])
-    
+    rank = int(os.environ.get("SLURM_PROCID", 0))
+    gpus_per_node = int(os.environ.get("SLURM_GPUS_ON_NODE", 1))
+    world_size = int(os.environ.get("SLURM_NTASKS", gpus_per_node))
+
     assert gpus_per_node == torch.cuda.device_count(), f"GPUs per node {gpus_per_node} != {torch.cuda.device_count()}"
-    
+
     print(f"Hello from rank {rank} of {world_size} on {gethostname()} where there are" \
         f" {gpus_per_node} allocated GPUs per node.", flush=True)
         
-    dist_is_init = distributed_setup(rank=rank, world_size=world_size, gpus_per_node=gpus_per_node)
+    distributed_setup(rank=rank, world_size=world_size, gpus_per_node=gpus_per_node)
     if rank == 0: print(f"Group initialized? {dist.is_initialized()}", flush=True)
     
     import argparse
