@@ -11,7 +11,7 @@ dataset:
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
   batch_size: 16
-  batch_size_eval: 12
+  batch_size_eval: 16
 lr_scheduler:
   type: linear
   warmup_steps: 128
