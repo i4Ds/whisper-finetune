@@ -24,7 +24,7 @@ def train_step(
     model: Whisper,
     train_iter: Iterator,
     optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LambdaLR,
+    lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
     t_config: dict,
 ) -> float:
     model.train()
@@ -70,12 +70,15 @@ def train_step(
         scaler.unscale_(optimizer)
 
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+
     if scaler:
         scaler.step(optimizer)
+        lr_scheduler.step()
         scaler.update()
     else:
         optimizer.step()
-    scheduler.step()
+        lr_scheduler.step()
+
     optimizer.zero_grad()
 
     return total_loss

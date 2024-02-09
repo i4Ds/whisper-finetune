@@ -18,15 +18,19 @@ def set_seed(seed: int):
     torch.cuda.manual_seed(seed)
 
 
-def distributed_setup(rank, world_size):
+def distributed_setup(rank, world_size, gpus_per_node):
     if not dist.is_available() or world_size < 2:
         print("Distributed training is not available or world size is less than 2. World size:", world_size)
-        return False
+        return 
     # initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
+
+    local_rank = rank - gpus_per_node * (rank // gpus_per_node)
+    torch.cuda.set_device(local_rank)
+
+    print(f"host: {gethostname()}, rank: {rank}, local_rank: {local_rank}")
+
     if dist.is_initialized():
         print(f"Rank {rank} initialized.")
-        return True
     else:
         print(f"Rank {rank} failed to initialize.")
-        return False
