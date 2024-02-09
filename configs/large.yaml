@@ -11,7 +11,7 @@ dataset:
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
   batch_size: 16
-  batch_size_eval: 16
+  batch_size_eval: 12
 lr_scheduler:
   type: linear
   warmup_steps: 128
@@ -28,7 +28,7 @@ training:
   accum_grad_steps: 16
   train_only_decoder: False
   max_grad_norm: 1.0
-  train_steps: 2000
+  train_steps: 1000
   eval_steps: 50
   eval_warmup: 0
   eval_steps_early: 50

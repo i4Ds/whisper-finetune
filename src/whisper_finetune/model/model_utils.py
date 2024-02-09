@@ -107,6 +107,8 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
             print("Warning: loss nan")
         else:
             total_loss += loss.item()
+
+    del x, y_in, y_out
     return total_loss / len(dev_loader)
 
 
