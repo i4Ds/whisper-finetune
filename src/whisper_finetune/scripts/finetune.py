@@ -26,7 +26,8 @@ from whisper_finetune.model.model_utils import (
 )
 from whisper_finetune.model.optimizer import get_optimizer
 from whisper_finetune.model.scheduler import get_scheduler
-from whisper_finetune.utils import distributed_setup, read_config, set_seed
+from whisper_finetune.utils import distributed_setup, read_config, set_seed, get_unique_base_path
+import math
 
 
 def main_loop(
@@ -51,6 +52,7 @@ def main_loop(
         train_loss = train_step(model, train_iter, optimizer, scheduler, t_config)
         pbar.set_postfix({"loss": train_loss})
         logging.info(f"train\t{step}\t{train_loss}\t{scheduler.get_last_lr()[0]}")
+        wandb.log({"Learning rate": scheduler.get_last_lr()[0]})
         wandb.log({"Train loss": train_loss})  # Log training loss
 
         if ((step <= t_config["eval_warmup"]) and (step % t_config["eval_steps_early"] == 0)) or (
@@ -73,16 +75,19 @@ def main_loop(
     save_model(model, f"{save_dir}/last_model.pt")
     wandb.save(f"{save_dir}/last_model.pt")  # Save last model to wandb
 
+
 def main(config):
     set_seed(config["seed"])
     # Start GPU memory profiling
     try:
         torch.cuda.memory._record_memory_history(
-            max_entries=1000000,
+            max_entries=100000,
         )
     except Exception as e:
         print("Memory history recording failed:", e)
     torch.backends.cudnn.benchmark = False
+
+    config["save_dir"] = get_unique_base_path() + "_" + config["save_dir"]
     wandb.init(config=config)
 
     # Create save directory
@@ -100,7 +105,7 @@ def main(config):
     print("CUDA version:", torch.version.cuda)
     print("PyTorch version:", torch.__version__)
     print("GPU Name:", torch.cuda.get_device_name(0))
-    print("GPU memory:", torch.cuda.get_device_properties(0).total_memory / 1024 ** 3, "GB")
+    print("GPU memory:", torch.cuda.get_device_properties(0).total_memory / 1024**3, "GB")
 
     # Get datasets
     ds_config = config["dataset"]
@@ -112,6 +117,19 @@ def main(config):
     for dataset_name in ds_config["val_datasets"]:
         val_datasets.append(load_dataset(dataset_name, split=ds_config["valid_split_name"]))
     val_dataset = concatenate_datasets(val_datasets)
+
+    # Calculate trainings steps from epochs
+    samples = len(train_dataset)
+
+    training_steps = math.ceil(
+        samples
+        * config["training"]["epochs"]
+        / (config["dataset"]["batch_size"] * config["training"]["accum_grad_steps"])
+    )
+    config["training"]["train_steps"] = training_steps
+    print(
+        f"Based on {samples} samples and {config['training']['epochs']} epochs, I will do {training_steps} training steps."
+    )
 
     # Get tokenizer
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
@@ -204,17 +222,14 @@ def main(config):
     try:
         file_name = "_".join(
             [
+                "memory",
                 str(config["model"]["bfloat16"]),
                 str(config["training"]["mixed_precision"]),
                 str(config["training"]["mp_dtype"]),
                 str(config["training"]["gradient_checkpointing"]),
             ]
         )
-        try:
-            torch.cuda.memory._dump_snapshot(f"/memory/{file_name}.pt")
-        except Exception as e:
-            os.makedirs("memory", exist_ok=True)
-            torch.cuda.memory._dump_snapshot(f"memory/{file_name}.pt")
+        torch.cuda.memory._dump_snapshot(f"{config['base_path']}/{file_name}.pt")
     except Exception as e:
         print(e)
 
@@ -234,12 +249,16 @@ if __name__ == "__main__":
 
     assert gpus_per_node == torch.cuda.device_count(), f"GPUs per node {gpus_per_node} != {torch.cuda.device_count()}"
 
-    print(f"Hello from rank {rank} of {world_size} on {gethostname()} where there are" \
-        f" {gpus_per_node} allocated GPUs per node.", flush=True)
-        
+    print(
+        f"Hello from rank {rank} of {world_size} on {gethostname()} where there are"
+        f" {gpus_per_node} allocated GPUs per node.",
+        flush=True,
+    )
+
     distributed_setup(rank=rank, world_size=world_size, gpus_per_node=gpus_per_node)
-    if rank == 0: print(f"Group initialized? {dist.is_initialized()}", flush=True)
-    
+    if rank == 0:
+        print(f"Group initialized? {dist.is_initialized()}", flush=True)
+
     import argparse
 
     parser = argparse.ArgumentParser(description="Script Configuration")
