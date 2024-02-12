@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Define the dataset to download and your Hugging Face token
-DATASET_NAME="i4ds/sds-stt-spc-train-fold_0"
+# Define the datasets to download
+DATASET_NAMES=("i4ds/sds-stt-spc-train-fold_2" "i4ds/sds-stt-spc-train-fold_3")
 
 # Create a virtual environment in the current directory
 python3 -m venv .hu_ds_download
@@ -18,8 +18,10 @@ pip install --upgrade pip
 # Install the datasets library by Hugging Face
 pip install datasets
 
-# Use the load_dataset function from the datasets library
-python3 -c "from datasets import load_dataset; dataset = load_dataset('$DATASET_NAME')"
+# Loop through the datasets and download each one
+for DATASET_NAME in "${DATASET_NAMES[@]}"; do
+    python3 -c "from datasets import load_dataset; dataset = load_dataset('$DATASET_NAME')"
+done
 
 # Deactivate the virtual environment when done
 deactivate
