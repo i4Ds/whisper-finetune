@@ -170,3 +170,6 @@ logs/*
 .hu_ds_download/
 *.out
 .whisper_dl/*
+cache/huggingface/*
+ct2_output/*
+downloaded_models/*
