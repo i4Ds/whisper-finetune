@@ -1,13 +1,17 @@
 #!/bin/bash
 
 # Define the datasets to download
-DATASET_NAMES=("i4ds/sds-stt-spc-train-fold_2" "i4ds/sds-stt-spc-train-fold_3")
+DATASET_NAMES=("i4ds/sds-stt-spc-validation" "i4ds/sds-stt-spc-train-fold_1" "i4ds/sds-stt-spc-train-fold_1" "i4ds/sds-stt-spc-train-fold_2" "i4ds/sds-stt-spc-train-fold_3" "i4ds/sds-stt-spc-train-fold_4" "i4ds/sds-stt-spc-train-fold_5" "i4ds/sds-stt-spc-train-fold_6" "i4ds/sds-stt-spc-train-fold_7")
 
 # Create a virtual environment in the current directory
 python3 -m venv .hu_ds_download
 
 # Get env variables
-export $(cat .env-dataset | xargs)
+export $(cat .env | xargs)
+
+# Overwrite some variables
+export HF_DATASETS_OFFLINE=0
+export TRANSFORMERS_OFFLINE=0
 
 # Activate the virtual environment
 source .hu_ds_download/bin/activate
