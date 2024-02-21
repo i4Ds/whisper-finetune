@@ -64,17 +64,17 @@ class AudioDataset(Dataset):
         self.hu_dataset = self.hu_dataset.with_format(type="torch")
 
         # Some checks
-        assert np.intersect1d(self.hu_dataset.column_names, ["audio", "text", "language", "prompt"]).size == 4
+        assert np.intersect1d(self.hu_dataset.column_names, ["audio", "text", "language"]).size == 3
 
     def __len__(self) -> int:
         return len(self.hu_dataset)
 
-    def _get_prompt_tokens(self, prompt: str, no_timestamps: bool) -> List[int]:
-        if len(prompt) > 0 and torch.rand(1).item() < self.prompt_use_rate:
+    def _get_prompt_tokens(self, record: Record, no_timestamps: bool) -> List[int]:
+        if torch.rand(1).item() < self.prompt_use_rate and len(record['prompt']) > 0:
             if no_timestamps:
-                prompt_tokens = self._encode_text_without_timestamps(prompt)[-self.max_prompt_length :]
+                prompt_tokens = self._encode_text_without_timestamps(record['prompt'])[-self.max_prompt_length :]
             else:
-                prompt_tokens = self._encode_text_with_timestamps(prompt)[-self.max_prompt_length :]
+                prompt_tokens = self._encode_text_with_timestamps(record['prompt'])[-self.max_prompt_length :]
             prompt_tokens = [self.tokenizer.sot_prev] + prompt_tokens
         else:
             prompt_tokens = []
@@ -189,7 +189,7 @@ class AudioDataset(Dataset):
         record = self.hu_dataset[index]
         no_timestamps = self.no_timestamps_training or torch.rand(1).item() < self.no_timestamps_rate
 
-        prompt_tokens = self._get_prompt_tokens(record["prompt"], no_timestamps)
+        prompt_tokens = self._get_prompt_tokens(record, no_timestamps)
         text_tokens, next_partial_segment_start = self._get_text_tokens(record["text"], no_timestamps)
         is_text_empty = len(text_tokens) == 0
         special_tokens = self._get_special_tokens(is_text_empty, record["language"], no_timestamps)

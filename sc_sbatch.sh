@@ -6,6 +6,7 @@
 #SBATCH --partition=a100       # or titanx
 #SBATCH --gres=gpu:1            # number of gpus per node
 #SBATCH --qos=1week	           # qos level
+#SBATCH --begin=now+1hours 
 
 # ACTIVATE ANACONDA
 eval "$(conda shell.bash hook)"

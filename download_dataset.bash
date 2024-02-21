@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the datasets to download
-DATASET_NAMES=("i4ds/sds-stt-spc-validation" "i4ds/sds-stt-spc-train-fold_1" "i4ds/sds-stt-spc-train-fold_1" "i4ds/sds-stt-spc-train-fold_2" "i4ds/sds-stt-spc-train-fold_3" "i4ds/sds-stt-spc-train-fold_4" "i4ds/sds-stt-spc-train-fold_5" "i4ds/sds-stt-spc-train-fold_6" "i4ds/sds-stt-spc-train-fold_7")
+DATASET_NAMES=("i4ds/sds-spc-stt4sg-sentence-level-train-val")
 
 # Create a virtual environment in the current directory
 python3 -m venv .hu_ds_download
