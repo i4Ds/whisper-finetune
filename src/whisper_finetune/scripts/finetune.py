@@ -3,6 +3,7 @@ import logging
 import os
 from pathlib import Path
 from socket import gethostname
+import numpy as np
 
 import torch
 import torch.distributed as dist
@@ -75,6 +76,28 @@ def main_loop(
     save_model(model, f"{save_dir}/last_model.pt")
     wandb.save(f"{save_dir}/last_model.pt")  # Save last model to wandb
 
+def add_fixed_value(batch, col_name, fixed_value):
+    batch[col_name] = [fixed_value] * len(batch['text'])
+    return batch
+
+# Function to process individual datasets
+def process_dataset(dataset_names, select_n_per_ds, split_name):
+    processed_datasets = []
+    for N, dataset_name in zip(select_n_per_ds, dataset_names):
+        dataset = load_dataset(dataset_name, split=split_name)
+        if N is not None:
+            # Ensure N does not exceed dataset size
+            N = min(N, len(dataset))
+            selected_indices = np.random.choice(len(dataset), size=N, replace=False)
+            dataset = dataset.select(selected_indices)
+        if 'sentence' in dataset.column_names:
+            dataset = dataset.rename_column('sentence', 'text')
+
+        if 'language' not in dataset.column_names: # Bad hack because we forgot to add language to the dataset.
+            dataset = dataset.map(add_fixed_value, batched=True, fn_kwargs={'col_name':'language', 'fixed_value':'de'})
+
+        processed_datasets.append(dataset)
+    return concatenate_datasets(processed_datasets)
 
 def main(config):
     set_seed(config["seed"])
@@ -109,14 +132,10 @@ def main(config):
 
     # Get datasets
     ds_config = config["dataset"]
-    train_datasets = []
-    for dataset_name in ds_config["train_datasets"]:
-        train_datasets.append(load_dataset(dataset_name, split=ds_config["train_split_name"]))
-    train_dataset = concatenate_datasets(train_datasets)
-    val_datasets = []
-    for dataset_name in ds_config["val_datasets"]:
-        val_datasets.append(load_dataset(dataset_name, split=ds_config["valid_split_name"]))
-    val_dataset = concatenate_datasets(val_datasets)
+    train_dataset = process_dataset(ds_config["train_datasets"], ds_config['select_n_per_t_ds'], ds_config["train_split_name"])
+
+    # Process validation datasets
+    val_dataset = process_dataset(ds_config["val_datasets"], ds_config['select_n_per_v_ds'], ds_config["valid_split_name"])
 
     # Calculate trainings steps from epochs
     samples = len(train_dataset)

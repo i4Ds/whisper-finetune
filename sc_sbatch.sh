@@ -6,7 +6,6 @@
 #SBATCH --partition=a100       # or titanx
 #SBATCH --gres=gpu:1            # number of gpus per node
 #SBATCH --qos=1week	           # qos level
-#SBATCH --begin=now+1hours 
 
 # ACTIVATE ANACONDA
 eval "$(conda shell.bash hook)"
@@ -15,4 +14,4 @@ conda activate whisper_finetune
 # Get env variables
 export $(cat .env | xargs)
 
-python src/whisper_finetune/scripts/finetune.py --config configs/large.yaml
+python src/whisper_finetune/scripts/finetune.py --config configs/large-sentence.yaml
