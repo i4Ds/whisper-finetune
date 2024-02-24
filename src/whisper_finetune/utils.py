@@ -6,6 +6,7 @@ import torch.distributed as dist
 import yaml
 import uuid
 import os
+from socket import gethostname
 
 
 def read_config(yaml_file_path):

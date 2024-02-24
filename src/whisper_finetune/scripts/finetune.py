@@ -31,6 +31,7 @@ from whisper_finetune.utils import distributed_setup, read_config, set_seed, get
 import math
 
 
+
 def main_loop(
     model: WhisperModel,
     train_loader: DataLoader,
@@ -40,12 +41,12 @@ def main_loop(
     save_dir: str,
     t_config: dict,
 ) -> None:
-    wandb.watch(model, log="all")  # Log all gradients and model parameters
+    wandb.watch(model, log="all")
 
-    min_loss = evaluate(model, dev_loader, t_config)
-    print(f"Initial loss: {min_loss}")
+    min_loss, min_wer = evaluate(model, dev_loader, t_config)
+    print(f"Initial loss: {min_loss}. Intial WER: {min_wer}")
     logging.info(f"eval\t0\t{min_loss}\t{scheduler.get_last_lr()[0]}")
-    wandb.log({"Initial loss": min_loss})  # Log initial loss
+    wandb.log({"Initial loss": min_loss, 'Initial WER': min_wer}) 
 
     pbar = tqdm(range(1, t_config["train_steps"] + 1))
     train_iter = infinite_iter(train_loader)
@@ -59,12 +60,12 @@ def main_loop(
         if ((step <= t_config["eval_warmup"]) and (step % t_config["eval_steps_early"] == 0)) or (
             (step > t_config["eval_warmup"]) and (step % t_config["eval_steps"] == 0)
         ):
-            eval_loss = evaluate(model, dev_loader, t_config)
+            eval_loss, eval_wer = evaluate(model, dev_loader, t_config)
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
-            wandb.log({"Validation loss": eval_loss})  # Log validation loss
+            wandb.log({"Validation loss": eval_loss, 'Validation WER': eval_wer})  # Log validation loss
 
-            if eval_loss < min_loss:
-                min_loss = eval_loss
+            if eval_wer < min_wer:
+                min_wer = eval_wer
                 save_model(model, f"{save_dir}/best_model.pt")
                 wandb.save(f"{save_dir}/best_model.pt")  # Save best model to wandb
 
@@ -76,9 +77,11 @@ def main_loop(
     save_model(model, f"{save_dir}/last_model.pt")
     wandb.save(f"{save_dir}/last_model.pt")  # Save last model to wandb
 
+
 def add_fixed_value(batch, col_name, fixed_value):
-    batch[col_name] = [fixed_value] * len(batch['text'])
+    batch[col_name] = [fixed_value] * len(batch["text"])
     return batch
+
 
 # Function to process individual datasets
 def process_dataset(dataset_names, select_n_per_ds, split_name):
@@ -90,14 +93,17 @@ def process_dataset(dataset_names, select_n_per_ds, split_name):
             N = min(N, len(dataset))
             selected_indices = np.random.choice(len(dataset), size=N, replace=False)
             dataset = dataset.select(selected_indices)
-        if 'sentence' in dataset.column_names:
-            dataset = dataset.rename_column('sentence', 'text')
+        if "sentence" in dataset.column_names:
+            dataset = dataset.rename_column("sentence", "text")
 
-        if 'language' not in dataset.column_names: # Bad hack because we forgot to add language to the dataset.
-            dataset = dataset.map(add_fixed_value, batched=True, fn_kwargs={'col_name':'language', 'fixed_value':'de'})
+        if "language" not in dataset.column_names:  # Bad hack because we forgot to add language to the dataset.
+            dataset = dataset.map(
+                add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
+            )
 
         processed_datasets.append(dataset)
     return concatenate_datasets(processed_datasets)
+
 
 def main(config):
     set_seed(config["seed"])
@@ -132,10 +138,14 @@ def main(config):
 
     # Get datasets
     ds_config = config["dataset"]
-    train_dataset = process_dataset(ds_config["train_datasets"], ds_config['select_n_per_t_ds'], ds_config["train_split_name"])
+    train_dataset = process_dataset(
+        ds_config["train_datasets"], ds_config["select_n_per_t_ds"], ds_config["train_split_name"]
+    )
 
     # Process validation datasets
-    val_dataset = process_dataset(ds_config["val_datasets"], ds_config['select_n_per_v_ds'], ds_config["valid_split_name"])
+    val_dataset = process_dataset(
+        ds_config["val_datasets"], ds_config["select_n_per_v_ds"], ds_config["valid_split_name"]
+    )
 
     # Calculate trainings steps from epochs
     samples = len(train_dataset)
