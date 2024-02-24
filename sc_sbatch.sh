@@ -14,4 +14,4 @@ conda activate whisper_finetune
 # Get env variables
 export $(cat .env | xargs)
 
-python src/whisper_finetune/scripts/finetune.py --config configs/large-sentence.yaml
+python src/whisper_finetune/scripts/finetune.py --config configs/large-srg-cv.yaml
