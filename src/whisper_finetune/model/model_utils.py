@@ -20,7 +20,7 @@ from whisper.model import AudioEncoder, TextDecoder, Whisper
 from whisper.version import __version__
 from whisper.tokenizer import get_tokenizer
 from whisper_finetune.eval.utils import normalize_text, VOCAB_SPECS
-import evaluate as hu_evaluate
+from whisper_finetune.eval.wer import WER
 
 def train_step(
     model: Whisper,
@@ -98,7 +98,8 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
 
     # Get tokenizer & eval metric
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
-    wer = evaluate.load('wer')
+
+    wer = WER()
 
     for x, y_in, y_out in tqdm(dev_loader):
         x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
@@ -111,11 +112,11 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
             loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 
             # Convert logits to token IDs
-            pred_token_ids = torch.argmax(logits, dim=-1)  # Assuming logits shape is [batch, seq_len, vocab_size]
+            pred_token_ids = torch.argmax(logits, dim=-1) 
 
-            # Decode predicted and true texts
-            batch_pred = [tokenizer.decode(ids.cpu().numpy()) for ids in pred_token_ids]
-            batch_true = [tokenizer.decode(ids.cpu().numpy()) for ids in y_out]
+            # Filter out -100 values and decode.
+            batch_pred = [tokenizer.decode([id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]) for ids in pred_token_ids]
+            batch_true = [tokenizer.decode([id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]) for ids in y_out]
 
             # Normalize
             batch_pred = [normalize_text(x, **VOCAB_SPECS["v0"]) for x in batch_pred]
@@ -130,7 +131,9 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
         else:
             total_loss += loss.item()
 
-    wer = wer.compute(
+    print(pred_sentences)
+    print(true_sentences)
+    wer = wer._compute(
             predictions=pred_sentences,
             references=true_sentences,
         )

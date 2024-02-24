@@ -2,10 +2,10 @@ model:
   init_name: large-v2
   bfloat16: False # If this is set, mixed_precision will use bfloat16
 dataset:
-  train_datasets: [i4ds/mozilla-cv-13-long-text-de, i4ds/srg-full-train-val, i4ds/sds-stt-spc-train-fold_0]
-  select_n_per_t_ds: [30000, null, null]
-  val_datasets: [i4ds/mozilla-cv-13-long-text-de, i4ds/srg-full-train-val, i4ds/sds-stt-spc-validation]
-  select_n_per_v_ds: [1000, 1000, 1000]
+  train_datasets: [i4ds/sds-stt-spc-train-fold_0]
+  select_n_per_t_ds: [null, null, null]
+  val_datasets: [i4ds/sds-stt-spc-validation]
+  select_n_per_v_ds: [42, null, null]
   train_split_name: "train"
   valid_split_name: "validation"
   no_timestamp_training: False
@@ -30,7 +30,7 @@ training:
   accum_grad_steps: 16
   train_only_decoder: False
   max_grad_norm: 1.0
-  epochs: 2
+  epochs: 8
   eval_steps: 50
   eval_warmup: 0
   eval_steps_early: 50
