@@ -18,7 +18,9 @@ from tqdm import tqdm
 from whisper import _ALIGNMENT_HEADS, _MODELS, _download, available_models
 from whisper.model import AudioEncoder, TextDecoder, Whisper
 from whisper.version import __version__
-
+from whisper.tokenizer import get_tokenizer
+from whisper_finetune.eval.utils import normalize_text, VOCAB_SPECS
+import evaluate as hu_evaluate
 
 def train_step(
     model: Whisper,
@@ -88,10 +90,15 @@ def train_step(
 def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
     model.eval()
     total_loss = 0.0
+    pred_sentences, true_sentences = [], []
 
     # Read variables from t_config
     mixed_precision = t_config["mixed_precision"]
     mp_dtype = torch.float16 if t_config["mp_dtype"] == "fp16" else torch.bfloat16
+
+    # Get tokenizer & eval metric
+    tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
+    wer = evaluate.load('wer')
 
     for x, y_in, y_out in tqdm(dev_loader):
         x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
@@ -103,13 +110,33 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
 
             loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 
+            # Convert logits to token IDs
+            pred_token_ids = torch.argmax(logits, dim=-1)  # Assuming logits shape is [batch, seq_len, vocab_size]
+
+            # Decode predicted and true texts
+            batch_pred = [tokenizer.decode(ids.cpu().numpy()) for ids in pred_token_ids]
+            batch_true = [tokenizer.decode(ids.cpu().numpy()) for ids in y_out]
+
+            # Normalize
+            batch_pred = [normalize_text(x, **VOCAB_SPECS["v0"]) for x in batch_pred]
+            batch_true = [normalize_text(x, **VOCAB_SPECS["v0"]) for x in batch_true]
+
+            # Append
+            pred_sentences.extend(batch_pred)
+            true_sentences.extend(batch_true)
+
         if torch.isnan(loss).any():
             print("Warning: loss nan")
         else:
             total_loss += loss.item()
 
-    del x, y_in, y_out
-    return total_loss / len(dev_loader)
+    wer = wer.compute(
+            predictions=pred_sentences,
+            references=true_sentences,
+        )
+
+    del x, y_in, y_out, pred_sentences, true_sentences, batch_pred, batch_true
+    return total_loss / len(dev_loader), wer
 
 
 def save_model(model: Whisper, save_path: str) -> None:
