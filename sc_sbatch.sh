@@ -2,7 +2,7 @@
 #SBATCH --job-name=whisper_finetune     # create a short name for your job
 #SBATCH --cpus-per-task=8                  #This is the number of cores reserved
 #SBATCH --mem-per-cpu=8G              #This is the memory reserved per core.
-#SBATCH --time=55:00:00         # total run time limit (HH:MM:SS)
+#SBATCH --time=75:00:00         # total run time limit (HH:MM:SS)
 #SBATCH --partition=a100       # or titanx
 #SBATCH --gres=gpu:1            # number of gpus per node
 #SBATCH --qos=1week	           # qos level
