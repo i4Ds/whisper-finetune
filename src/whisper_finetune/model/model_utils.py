@@ -114,15 +114,16 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
             # Convert logits to token IDs
             pred_token_ids = torch.argmax(logits, dim=-1) 
 
-            # Filter out -100 values and decode.
+            # Filter out -100 values, special tokens and decode.
             batch_pred = [tokenizer.decode([id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]) for ids in pred_token_ids]
             batch_true = [tokenizer.decode([id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]) for ids in y_out]
 
-            # Normalize
-            batch_pred = [normalize_text(x, **VOCAB_SPECS["v0"]) for x in batch_pred]
-            batch_true = [normalize_text(x, **VOCAB_SPECS["v0"]) for x in batch_true]
+            # Normalize and filter out empty sentences in the reference
+            mask = [True if x != '' else False for x in batch_true]
+            batch_pred = [normalize_text(x, **VOCAB_SPECS["v0"]) for x, m in zip(batch_pred, mask) if m]
+            batch_true = [normalize_text(x, **VOCAB_SPECS["v0"]) for x, m in zip(batch_true, mask) if m]
 
-            # Append
+            # Append 
             pred_sentences.extend(batch_pred)
             true_sentences.extend(batch_true)
 
@@ -131,8 +132,6 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
         else:
             total_loss += loss.item()
 
-    print(pred_sentences)
-    print(true_sentences)
     wer = wer._compute(
             predictions=pred_sentences,
             references=true_sentences,
