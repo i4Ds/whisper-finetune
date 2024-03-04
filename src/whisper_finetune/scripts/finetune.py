@@ -44,7 +44,7 @@ def main_loop(
     wandb.watch(model, log="all")
 
     min_loss, min_wer = evaluate(model, dev_loader, t_config)
-    print(f"Initial loss: {min_loss}. Intial WER: {min_wer}")
+    print(f"Initial loss: {min_loss}. Initial WER: {min_wer}")
     logging.info(f"eval\t0\t{min_loss}\t{scheduler.get_last_lr()[0]}")
     wandb.log({"Initial loss": min_loss, 'Initial WER': min_wer}) 
 
