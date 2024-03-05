@@ -53,7 +53,7 @@ def train_step(
     for _ in range(accum_grad_steps):
         retry_count = 0
         while retry_count < max_retries:
-            try: # Illegal memory access happens sometime. 
+            try: # Illegal memory access happens sometimes.
                 x, y_in, y_out = next(train_iter)
                 x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
                 with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mp_dtype):
