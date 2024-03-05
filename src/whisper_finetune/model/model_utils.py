@@ -48,24 +48,39 @@ def train_step(
     else:
         scaler = None
 
-    for _ in range(accum_grad_steps):
-        x, y_in, y_out = next(train_iter)
-        x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
-        with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mp_dtype):
-            if train_only_decoder:
-                with torch.no_grad():
-                    audio_features = model.embed_audio(x)
-            else:
-                audio_features = model.embed_audio(x)
-            logits = model.logits(y_in, audio_features=audio_features)
-            loss = F.cross_entropy(logits.transpose(1, 2), y_out)
+    max_retries = 3  # Set the maximum number of retries for a training step
 
-            loss = loss / accum_grad_steps
-        if scaler:
-            scaler.scale(loss).backward()
-        else:
-            loss.backward()
-        total_loss += loss.item()
+    for _ in range(accum_grad_steps):
+        retry_count = 0
+        while retry_count < max_retries:
+            try: # Illegal memory access happens sometime. 
+                x, y_in, y_out = next(train_iter)
+                x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
+                with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mp_dtype):
+                    if train_only_decoder:
+                        with torch.no_grad():
+                            audio_features = model.embed_audio(x)
+                    else:
+                        audio_features = model.embed_audio(x)
+                    logits = model.logits(y_in, audio_features=audio_features)
+                    loss = F.cross_entropy(logits.transpose(1, 2), y_out)
+
+                    loss = loss / accum_grad_steps
+                if scaler:
+                    scaler.scale(loss).backward()
+                else:
+                    loss.backward()
+                total_loss += loss.item()
+                break  # Exit retry loop if no error occurs
+            except RuntimeError as e:
+                if "CUDA error: an illegal memory" in str(e):
+                    print(f"Caught illegal memory access, retry {retry_count + 1}")
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        print("Max retries reached. Something is wrong.")
+                        raise
+                else:
+                    raise
 
     if scaler:
         # Unscales the gradients of optimizer's assigned params in-place
