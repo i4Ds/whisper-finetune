@@ -9,7 +9,7 @@ from datasets import Dataset as HU_Dataset
 from numpy import ndarray
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
-from whisper import Whisper
+from whisper_finetune.data.utils import TimeWarpAugmenter
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, log_mel_spectrogram, pad_or_trim
 from whisper.tokenizer import Tokenizer
 
@@ -41,6 +41,7 @@ class AudioDataset(Dataset):
         spec_augment: bool = False,
         time_mask_param: int = 100,
         freq_mask_param: int = 27,
+        time_warper_w: int = 80,
         p: float = 1.0,
     ) -> None:
         self.hu_dataset = hu_dataset
@@ -56,6 +57,7 @@ class AudioDataset(Dataset):
         if spec_augment:
             self.time_masking = T.TimeMasking(time_mask_param=time_mask_param, p=p)
             self.freq_masking = T.FrequencyMasking(freq_mask_param=freq_mask_param)
+            self.time_warping = TimeWarpAugmenter(W=time_warper_w)
 
         self.num_frames_per_second = N_FRAMES / CHUNK_LENGTH
         # timestamps tokens are from <|0.00|> to <|30.00|> with a step of 0.02
@@ -162,6 +164,7 @@ class AudioDataset(Dataset):
             mel = torch.unsqueeze(mel, dim=0)
             mel = self.time_masking(mel)
             mel = self.freq_masking(mel)
+            mel = self.time_warping(mel)
             mel = torch.squeeze(mel, dim=0)
 
         return mel
@@ -233,6 +236,7 @@ def get_dataloader(
     spec_augment: bool = False,
     time_mask_param: int = 100,
     freq_mask_param: int = 27,
+    time_warper_w: int = 80,
     p: float = 1.0,
 ) -> DataLoader:
     print(f"Found {len(hu_dataset)} records in the dataset.")
@@ -248,6 +252,7 @@ def get_dataloader(
         spec_augment=spec_augment,
         time_mask_param=time_mask_param,
         freq_mask_param=freq_mask_param,
+        time_warper_w=time_warper_w,
         p=p,
     )
     return DataLoader(

@@ -19,6 +19,7 @@ from whisper_finetune.data.data_loader import get_dataloader
 from whisper_finetune.model.model_utils import (
     CheckpointedAudioEncoder,
     CheckpointedTextDecoder,
+    CheckpointedAudioEncoderLastBlock,
     evaluate,
     infinite_iter,
     load_model_and_set_heads,
@@ -192,6 +193,7 @@ def main(config):
         spec_augment=config["augmentation"]["spec_augment"]["apply"],
         time_mask_param=config["augmentation"]["spec_augment"]["time_mask_param"],
         freq_mask_param=config["augmentation"]["spec_augment"]["freq_mask_param"],
+        time_warper_w=config["augmentation"]["spec_augment"]["time_warp_w"],
         p=config["augmentation"]["spec_augment"]["p"],
     )
     val_loader = get_dataloader(
@@ -217,15 +219,25 @@ def main(config):
     print("Is model bfloat16?", whisper_model.is_bfloat)
 
     # If gradient checkpointing is enabled, wrap the model with checkpointing
-    if config["training"]["gradient_checkpointing"]:
+    if config["training"]["gradient_checkpointing_encoder"]:
         del whisper_model.encoder
-        whisper_model.encoder = CheckpointedAudioEncoder(
-            whisper_model.dims.n_mels,
-            whisper_model.dims.n_audio_ctx,
-            whisper_model.dims.n_audio_state,
-            whisper_model.dims.n_audio_head,
-            whisper_model.dims.n_audio_layer,
-        )
+        if config["training"]["gradient_checkpointing_encoder"]:
+            whisper_model.encoder = CheckpointedAudioEncoder(
+                whisper_model.dims.n_mels,
+                whisper_model.dims.n_audio_ctx,
+                whisper_model.dims.n_audio_state,
+                whisper_model.dims.n_audio_head,
+                whisper_model.dims.n_audio_layer,
+            )
+        else:
+            whisper_model.encoder = CheckpointedAudioEncoderLastBlock(
+                whisper_model.dims.n_mels,
+                whisper_model.dims.n_audio_ctx,
+                whisper_model.dims.n_audio_state,
+                whisper_model.dims.n_audio_head,
+                whisper_model.dims.n_audio_layer,
+            )
+    if config["training"]["gradient_checkpointing_decoder"]:
         del whisper_model.decoder
         whisper_model.decoder = CheckpointedTextDecoder(
             whisper_model.dims.n_vocab,

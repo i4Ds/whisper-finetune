@@ -37,12 +37,15 @@ training:
   save_all_checkpoints: False
   mixed_precision: True
   mp_dtype: fp16
-  gradient_checkpointing: True
+  gradient_checkpointing_encoder: True
+  gradient_checkpointing_encoder_last_only: False
+  gradient_checkpointing_decoder: True
 augmentation:
   spec_augment:
     apply: True
     time_mask_param: 100
     p: 1.0
     freq_mask_param: 27
+    time_warp_w: 80
 seed: 123
 save_dir: output
