@@ -200,6 +200,30 @@ class CheckpointedAudioEncoder(AudioEncoder):
         x = self.ln_post(x)
         return x
 
+        
+class CheckpointedAudioEncoderLastBlock(AudioEncoder):
+    def forward(self, x: Tensor):
+        """
+        x : torch.Tensor, shape = (batch_size, n_mels, n_ctx)
+            the mel spectrogram of the audio
+        """
+        x = F.gelu(self.conv1(x))
+        x = F.gelu(self.conv2(x))
+        x = x.permute(0, 2, 1)
+
+        assert x.shape[1:] == self.positional_embedding.shape, "incorrect audio shape"
+        x = (x + self.positional_embedding).to(x.dtype)
+
+        
+        for block in self.blocks[:-1]:
+            x = block(x)
+
+        for block in self.blocks[-1]:
+            x = checkpoint(block, x, use_reentrant=False)
+
+        x = self.ln_post(x)
+        return x
+
 
 class CheckpointedTextDecoder(TextDecoder):
     def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int):
