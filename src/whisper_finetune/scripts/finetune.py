@@ -221,8 +221,8 @@ def main(config):
     # If gradient checkpointing is enabled, wrap the model with checkpointing
     if config["training"]["gradient_checkpointing_encoder"]:
         del whisper_model.encoder
-        if config["training"]["gradient_checkpointing_encoder"]:
-            whisper_model.encoder = CheckpointedAudioEncoder(
+        if config["training"]["gradient_checkpointing_encoder_last_only"]:
+            whisper_model.encoder = CheckpointedAudioEncoderLastBlock(
                 whisper_model.dims.n_mels,
                 whisper_model.dims.n_audio_ctx,
                 whisper_model.dims.n_audio_state,
@@ -230,7 +230,7 @@ def main(config):
                 whisper_model.dims.n_audio_layer,
             )
         else:
-            whisper_model.encoder = CheckpointedAudioEncoderLastBlock(
+            whisper_model.encoder = CheckpointedAudioEncoder(
                 whisper_model.dims.n_mels,
                 whisper_model.dims.n_audio_ctx,
                 whisper_model.dims.n_audio_state,

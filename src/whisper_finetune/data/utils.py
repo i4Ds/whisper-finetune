@@ -59,7 +59,7 @@ class TimeWarpAugmenter:
         W: strength of warp
         '''
         device = specs.device
-        specs = specs.unsqueeze(0).unsqueeze(0)
+        specs = specs.unsqueeze(0) # Add dim for channels
         batch_size, _, num_rows, spec_len = specs.shape
 
         warp_p = torch.randint(W, spec_len - W, (batch_size,), device=device)
@@ -82,4 +82,4 @@ class TimeWarpAugmenter:
             (ys.view(batch_size,1,-1,1).expand(-1,num_rows,-1,-1),
             torch.linspace(-1, 1, num_rows, device=device).view(-1,1,1).expand(batch_size,-1,spec_len,-1)), -1)
 
-        return torch.nn.functional.grid_sample(specs, grid, align_corners=True).squeeze(0).squeeze(0)
+        return torch.nn.functional.grid_sample(specs, grid, align_corners=True).squeeze(0) # Remove dim for channels
