@@ -246,7 +246,7 @@ def main(config):
             whisper_model.dims.n_text_head,
             whisper_model.dims.n_text_layer,
         )
-
+    if config["training"]["gradient_checkpointing_decoder"] or config["training"]["gradient_checkpointing_encoder"]:
         whisper_model = load_model_and_set_heads(whisper_model, config["model"]["init_name"], device="cuda")
     else:
         whisper_model.to("cuda")
