@@ -217,9 +217,8 @@ class CheckpointedAudioEncoderLastBlock(AudioEncoder):
         
         for block in self.blocks[:-1]:
             x = block(x)
-
-        for block in self.blocks[-1]:
-            x = checkpoint(block, x, use_reentrant=False)
+            
+        x = checkpoint(self.blocks[-1], x, use_reentrant=False)
 
         x = self.ln_post(x)
         return x

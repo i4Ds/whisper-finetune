@@ -38,8 +38,8 @@ training:
   mixed_precision: True
   mp_dtype: fp16
   gradient_checkpointing_encoder: True
-  gradient_checkpointing_encoder_last_only: True
-  gradient_checkpointing_decoder: False
+  gradient_checkpointing_encoder_last_only: False
+  gradient_checkpointing_decoder: True
 augmentation:
   spec_augment:
     apply: True
