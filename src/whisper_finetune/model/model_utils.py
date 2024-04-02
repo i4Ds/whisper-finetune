@@ -21,6 +21,7 @@ from whisper.version import __version__
 from whisper.tokenizer import get_tokenizer
 from whisper_finetune.eval.utils import normalize_text, VOCAB_SPECS
 from whisper_finetune.eval.wer import WER
+import wandb
 
 def train_step(
     model: Whisper,
@@ -121,9 +122,6 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
         with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mp_dtype):
             logits = model(x, y_in)
 
-            if torch.isnan(logits).any():
-                print("Warning: logits nan")
-
             loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 
             # Convert logits to token IDs
@@ -141,9 +139,28 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
             # Append 
             pred_sentences.extend(batch_pred)
             true_sentences.extend(batch_true)
-
+            
+        # Check loss for NANs
         if torch.isnan(loss).any():
-            print("Warning: loss nan")
+            nan_mask = torch.isnan(loss)
+            for idx, has_nan in enumerate(nan_mask):
+                if has_nan:
+                    error_sample_pred = batch_pred[idx]
+                    error_sample_true = batch_true[idx]
+                    
+                    # Detach, move to CPU, and convert to numpy for logging
+                    x_logged = x[idx].detach().cpu().numpy() if x[idx].requires_grad else x[idx].cpu().numpy()
+                    y_out_logged = y_out[idx].detach().cpu().numpy() if y_out[idx].requires_grad else y_out[idx].cpu().numpy()
+                    
+                    wandb.log({
+                        "error_sample_idx": idx,
+                        "error_sample_pred": error_sample_pred,
+                        "error_sample_true": error_sample_true,
+                        # Depending on the shape and data, you might log directly or use a visualization method
+                        "x_sample": x_logged,  
+                        "y_sample": y_out_logged,
+                    })
+                    raise Exception("Aborting because of NANs in validation loss.")
         else:
             total_loss += loss.item()
 
