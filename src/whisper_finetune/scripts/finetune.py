@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import whisper
-from datasets import concatenate_datasets, load_dataset
+
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from whisper import Whisper as WhisperModel
@@ -28,9 +28,13 @@ from whisper_finetune.model.model_utils import (
 )
 from whisper_finetune.model.optimizer import get_optimizer
 from whisper_finetune.model.scheduler import get_scheduler
-from whisper_finetune.utils import distributed_setup, read_config, set_seed, get_unique_base_path
+from whisper_finetune.utils import (
+    read_config,
+    set_seed,
+    get_unique_base_path,
+    process_dataset,
+)
 import math
-
 
 
 def main_loop(
@@ -47,7 +51,7 @@ def main_loop(
     min_loss, min_wer = evaluate(model, dev_loader, t_config)
     print(f"Initial loss: {min_loss}. Initial WER: {min_wer}")
     logging.info(f"eval\t0\t{min_loss}\t{scheduler.get_last_lr()[0]}")
-    wandb.log({"Initial loss": min_loss, 'Initial WER': min_wer}) 
+    wandb.log({"Initial loss": min_loss, "Initial WER": min_wer})
 
     pbar = tqdm(range(1, t_config["train_steps"] + 1))
     train_iter = infinite_iter(train_loader)
@@ -63,7 +67,7 @@ def main_loop(
         ):
             eval_loss, eval_wer = evaluate(model, dev_loader, t_config)
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
-            wandb.log({"Validation loss": eval_loss, 'Validation WER': eval_wer})  # Log validation loss
+            wandb.log({"Validation loss": eval_loss, "Validation WER": eval_wer})  # Log validation loss
 
             if eval_wer < min_wer:
                 min_wer = eval_wer
@@ -79,39 +83,13 @@ def main_loop(
     wandb.save(f"{save_dir}/last_model.pt")  # Save last model to wandb
 
 
-def add_fixed_value(batch, col_name, fixed_value):
-    batch[col_name] = [fixed_value] * len(batch["text"])
-    return batch
-
-
-# Function to process individual datasets
-def process_dataset(dataset_names, select_n_per_ds, split_name):
-    processed_datasets = []
-    for N, dataset_name in zip(select_n_per_ds, dataset_names):
-        dataset = load_dataset(dataset_name, split=split_name)
-        if N is not None:
-            # Ensure N does not exceed dataset size
-            N = min(N, len(dataset))
-            selected_indices = np.random.choice(len(dataset), size=N, replace=False)
-            dataset = dataset.select(selected_indices)
-        if "sentence" in dataset.column_names:
-            dataset = dataset.rename_column("sentence", "text")
-
-        if "language" not in dataset.column_names:  # Bad hack because we forgot to add language to the dataset.
-            dataset = dataset.map(
-                add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
-            )
-
-        processed_datasets.append(dataset)
-    return concatenate_datasets(processed_datasets)
-
-
 def main(config):
     set_seed(config["seed"])
     # Start GPU memory profiling
     try:
         torch.cuda.memory._record_memory_history(
             max_entries=100000,
+            enabled=None,
         )
     except Exception as e:
         print("Memory history recording failed:", e)
@@ -164,25 +142,11 @@ def main(config):
     # Get tokenizer
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
 
-    # Create distributed sampler
-    if dist.is_initialized():
-        print("Using distributed sampler")
-        # Add distributed sampler
-        sampler = torch.utils.data.distributed.DistributedSampler(
-            train_dataset, num_replicas=config["world_size"], rank=config["rank"]
-        )
-        # Assign GPUS
-        local_rank = rank - gpus_per_node * (rank // gpus_per_node)
-        torch.cuda.set_device(local_rank)
-        print(f"host: {gethostname()}, rank: {rank}, local_rank: {local_rank}")
-    else:
-        sampler = None
-
     # Get dataloaders
     train_loader = get_dataloader(
         hu_dataset=train_dataset,
         tokenizer=tokenizer,
-        sampler=sampler,
+        sampler=None,
         n_mels=128 if "v3" in config["model"]["init_name"] else 80,
         batch_size=config["dataset"]["batch_size"],
         no_timestamps_training=config["dataset"]["no_timestamp_training"],
@@ -283,23 +247,6 @@ def main(config):
 
 
 if __name__ == "__main__":
-    # Setup dist if needed
-    rank = int(os.environ.get("SLURM_PROCID", 0))
-    gpus_per_node = int(os.environ.get("SLURM_GPUS_ON_NODE", 1))
-    world_size = int(os.environ.get("SLURM_NTASKS", gpus_per_node))
-
-    assert gpus_per_node == torch.cuda.device_count(), f"GPUs per node {gpus_per_node} != {torch.cuda.device_count()}"
-
-    print(
-        f"Hello from rank {rank} of {world_size} on {gethostname()} where there are"
-        f" {gpus_per_node} allocated GPUs per node.",
-        flush=True,
-    )
-
-    distributed_setup(rank=rank, world_size=world_size, gpus_per_node=gpus_per_node)
-    if rank == 0:
-        print(f"Group initialized? {dist.is_initialized()}", flush=True)
-
     import argparse
 
     parser = argparse.ArgumentParser(description="Script Configuration")

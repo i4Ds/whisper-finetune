@@ -1,5 +1,5 @@
 import random
-
+from datasets import concatenate_datasets, load_dataset
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -41,3 +41,31 @@ def distributed_setup(rank, world_size, gpus_per_node):
 
 def get_unique_base_path():
     return os.getenv("SLURM_JOB_ID", str(uuid.uuid4()))
+
+
+def add_fixed_value(batch, col_name, fixed_value):
+    batch[col_name] = [fixed_value] * len(batch["text"])
+    return batch
+
+
+# Function to process individual datasets
+def process_dataset(dataset_names, select_n_per_ds, split_name):
+    """Function to process individual datasets. Mostly, we were not consistent in naming and sometimes did not add all required keys."""
+    processed_datasets = []
+    for N, dataset_name in zip(select_n_per_ds, dataset_names):
+        dataset = load_dataset(dataset_name, split=split_name)
+        if N is not None:
+            # Ensure N does not exceed dataset size
+            N = min(N, len(dataset))
+            selected_indices = np.random.choice(len(dataset), size=N, replace=False)
+            dataset = dataset.select(selected_indices)
+        if "sentence" in dataset.column_names:
+            dataset = dataset.rename_column("sentence", "text")
+
+        if "language" not in dataset.column_names:  # Bad hack because we forgot to add language to the dataset.
+            dataset = dataset.map(
+                add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
+            )
+
+        processed_datasets.append(dataset)
+    return concatenate_datasets(processed_datasets)
