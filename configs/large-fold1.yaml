@@ -1,6 +1,7 @@
 model:
   init_name: large-v2
   bfloat16: False # If this is set, mixed_precision will use bfloat16
+  lora: False
 dataset:
   train_datasets: [i4ds/sds-stt-spc-train-fold_0]
   select_n_per_t_ds: [null]
