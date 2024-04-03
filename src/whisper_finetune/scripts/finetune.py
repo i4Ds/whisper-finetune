@@ -195,7 +195,7 @@ def main(config):
     )
 
     # Calculate trainings steps from epochs
-    config["training"]["train_steps"] = calculate_training_steps(config)
+    config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)
 
     # Get tokenizer
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
