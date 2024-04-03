@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 
-def replace_attention_layers_with_lora(module, config):
+def replace_attention_layers_with_lora(module, config, parent=None, parent_name=None):
     for name, child in module.named_children():
         # Recursive call for child modules
         replace_attention_layers_with_lora(child, config, parent=module, parent_name=name)

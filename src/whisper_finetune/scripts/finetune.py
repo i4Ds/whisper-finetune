@@ -99,7 +99,6 @@ def main(config):
     torch.backends.cudnn.benchmark = False
 
     config["save_dir"] = get_unique_base_path() + "_" + config["save_dir"]
-    wandb.init(config=config)
 
     # Create save directory
     Path(config["save_dir"]).mkdir(parents=True, exist_ok=True)
@@ -177,12 +176,6 @@ def main(config):
     else:
         whisper_model.to("cuda")
 
-    # Load optimizer
-    optimizer = get_optimizer(whisper_model, config["optimizer"])
-
-    # Get Scheduler
-    scheduler = get_scheduler(optimizer, config["lr_scheduler"], config["training"]["train_steps"])
-
     # Get datasets
     ds_config = config["dataset"]
     train_dataset = process_dataset(
@@ -228,6 +221,15 @@ def main(config):
         num_workers=min(os.cpu_count(), 8),
         spec_augment=False,
     )
+
+    # Load optimizer
+    optimizer = get_optimizer(whisper_model, config["optimizer"])
+
+    # Get Scheduler
+    scheduler = get_scheduler(optimizer, config["lr_scheduler"], config["training"]["train_steps"])
+
+    # Wandb
+    wandb.init(config=config)
 
     # Train
     main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["save_dir"], config["training"])
