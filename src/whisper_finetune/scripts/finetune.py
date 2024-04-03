@@ -2,11 +2,9 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from socket import gethostname
-import numpy as np
+
 
 import torch
-import torch.distributed as dist
 import whisper
 
 from torch.utils.data import DataLoader
@@ -72,7 +70,6 @@ def main_loop(
             if eval_wer < min_wer:
                 min_wer = eval_wer
                 save_model(model, f"{save_dir}/best_model.pt")
-                wandb.save(f"{save_dir}/best_model.pt")  # Save best model to wandb
 
             if t_config["save_all_checkpoints"]:
                 save_model(model, f"{save_dir}/step{step}.pt")
@@ -81,6 +78,7 @@ def main_loop(
 
     save_model(model, f"{save_dir}/last_model.pt")
     wandb.save(f"{save_dir}/last_model.pt")  # Save last model to wandb
+    wandb.save(f"{save_dir}/best_model.pt")  # Save best model to wandb
 
 
 def main(config):
@@ -174,6 +172,20 @@ def main(config):
 
     # Load model
     whisper_model = whisper.load_model(config["model"]["init_name"], device="cpu")
+
+    # Check if we cast it to lora
+    if config["model"]["lora"]:
+        from whisper_finetune.model.lora import (
+            replace_attention_layers_with_lora,
+            has_lora_layers,
+            mark_only_lora_as_trainable,
+            print_trainable_params,
+        )
+
+        replace_attention_layers_with_lora(whisper_model, **config["model"]["lora_config"])
+        mark_only_lora_as_trainable(whisper_model)
+        assert has_lora_layers(whisper_model), "Lora layers were somehow not correctly set."
+        print_trainable_params(whisper_model)
     if config["model"]["bfloat16"]:
         whisper_model = whisper_model.bfloat16()
         whisper_model.is_bfloat = True
