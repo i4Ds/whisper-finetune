@@ -130,7 +130,7 @@ def main(config):
             print_trainable_params,
         )
 
-        replace_attention_layers_with_lora(whisper_model, **config["model"]["lora_config"])
+        replace_attention_layers_with_lora(whisper_model, config["model"]["lora_config"])
         mark_only_lora_as_trainable(whisper_model)
         assert has_lora_layers(whisper_model), "Lora layers were somehow not correctly set."
         print_trainable_params(whisper_model)
