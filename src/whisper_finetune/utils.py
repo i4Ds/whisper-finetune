@@ -7,6 +7,21 @@ import yaml
 import uuid
 import os
 from socket import gethostname
+import math
+from typing import Dict
+
+
+def calculate_training_steps(config: Dict, train_dataset) -> None:
+    # Extract relevant values from config
+    samples = len(train_dataset)
+    epochs = config["training"]["epochs"]
+    batch_size = config["dataset"]["batch_size"]
+    accum_grad_steps = config["training"]["accum_grad_steps"]
+
+    # Calculate training steps
+    training_steps = math.ceil(samples * epochs / (batch_size * accum_grad_steps))
+
+    return training_steps
 
 
 def read_config(yaml_file_path):
@@ -69,3 +84,31 @@ def process_dataset(dataset_names, select_n_per_ds, split_name):
 
         processed_datasets.append(dataset)
     return concatenate_datasets(processed_datasets)
+
+
+def handle_cuda_memory_operations(config: dict) -> None:
+    """
+    Handles CUDA memory snapshot dumping and stops recording memory history based on the provided config.
+    """
+    # Construct the file name from config parameters
+    file_name_elements = [
+        "memory",
+        str(config["model"].get("bfloat16", "NA")),
+        str(config["training"].get("mixed_precision", "NA")),
+        str(config["training"].get("mp_dtype", "NA")),
+        str(config["training"].get("gradient_checkpointing", "NA")),
+    ]
+    file_name = "_".join(file_name_elements) + ".pt"
+
+    # Attempt to dump CUDA memory snapshot
+    try:
+        torch.cuda.memory._dump_snapshot(f"{config['base_path']}/{file_name}")
+    except Exception as e:
+        print(f"Failed to dump CUDA memory snapshot: {e}")
+
+    # Attempt to stop recording memory history
+    try:
+        torch.cuda.memory._record_memory_history(enabled=None)
+    except Exception as e:
+        # Optionally, you could log this exception if necessary.
+        print(f"Failed to stop CUDA memory snapshotting: {e}")

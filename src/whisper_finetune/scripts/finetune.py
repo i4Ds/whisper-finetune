@@ -31,8 +31,12 @@ from whisper_finetune.utils import (
     set_seed,
     get_unique_base_path,
     process_dataset,
+    calculate_training_steps,
+    handle_cuda_memory_operations,
 )
-import math
+
+
+ENABLE_MEMORY_PROFILING = False
 
 
 def main_loop(
@@ -87,10 +91,11 @@ def main(config):
     try:
         torch.cuda.memory._record_memory_history(
             max_entries=100000,
-            enabled=None,
+            enabled=ENABLE_MEMORY_PROFILING,
         )
     except Exception as e:
         print("Memory history recording failed:", e)
+
     torch.backends.cudnn.benchmark = False
 
     config["save_dir"] = get_unique_base_path() + "_" + config["save_dir"]
@@ -113,64 +118,7 @@ def main(config):
     print("GPU Name:", torch.cuda.get_device_name(0))
     print("GPU memory:", torch.cuda.get_device_properties(0).total_memory / 1024**3, "GB")
 
-    # Get datasets
-    ds_config = config["dataset"]
-    train_dataset = process_dataset(
-        ds_config["train_datasets"], ds_config["select_n_per_t_ds"], ds_config["train_split_name"]
-    )
-
-    # Process validation datasets
-    val_dataset = process_dataset(
-        ds_config["val_datasets"], ds_config["select_n_per_v_ds"], ds_config["valid_split_name"]
-    )
-
-    # Calculate trainings steps from epochs
-    samples = len(train_dataset)
-
-    training_steps = math.ceil(
-        samples
-        * config["training"]["epochs"]
-        / (config["dataset"]["batch_size"] * config["training"]["accum_grad_steps"])
-    )
-    config["training"]["train_steps"] = training_steps
-    print(
-        f"Based on {samples} samples and {config['training']['epochs']} epochs, I will do {training_steps} training steps."
-    )
-
-    # Get tokenizer
-    tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
-
-    # Get dataloaders
-    train_loader = get_dataloader(
-        hu_dataset=train_dataset,
-        tokenizer=tokenizer,
-        sampler=None,
-        n_mels=128 if "v3" in config["model"]["init_name"] else 80,
-        batch_size=config["dataset"]["batch_size"],
-        no_timestamps_training=config["dataset"]["no_timestamp_training"],
-        max_prompt_length=config["dataset"]["max_prompt_length"],
-        prompt_use_rate=config["dataset"]["prompt_use_rate"],
-        no_timestamps_rate=config["dataset"]["no_timestamp_rate"],
-        num_workers=min(os.cpu_count(), 8),
-        spec_augment=config["augmentation"]["spec_augment"]["apply"],
-        time_mask_param=config["augmentation"]["spec_augment"]["time_mask_param"],
-        freq_mask_param=config["augmentation"]["spec_augment"]["freq_mask_param"],
-        time_warper_w=config["augmentation"]["spec_augment"]["time_warp_w"],
-        p=config["augmentation"]["spec_augment"]["p"],
-    )
-    val_loader = get_dataloader(
-        hu_dataset=val_dataset,
-        tokenizer=tokenizer,
-        n_mels=128 if "v3" in config["model"]["init_name"] else 80,
-        batch_size=config["dataset"]["batch_size_eval"],
-        no_timestamps_training=True,
-        prompt_use_rate=0,
-        no_timestamps_rate=0,
-        num_workers=min(os.cpu_count(), 8),
-        spec_augment=False,
-    )
-
-    # Load model
+    ## Get model
     whisper_model = whisper.load_model(config["model"]["init_name"], device="cpu")
 
     # Check if we cast it to lora
@@ -186,6 +134,8 @@ def main(config):
         mark_only_lora_as_trainable(whisper_model)
         assert has_lora_layers(whisper_model), "Lora layers were somehow not correctly set."
         print_trainable_params(whisper_model)
+
+    # bfloat16 training?
     if config["model"]["bfloat16"]:
         whisper_model = whisper_model.bfloat16()
         whisper_model.is_bfloat = True
@@ -233,27 +183,58 @@ def main(config):
     # Get Scheduler
     scheduler = get_scheduler(optimizer, config["lr_scheduler"], config["training"]["train_steps"])
 
+    # Get datasets
+    ds_config = config["dataset"]
+    train_dataset = process_dataset(
+        ds_config["train_datasets"], ds_config["select_n_per_t_ds"], ds_config["train_split_name"]
+    )
+
+    # Process validation datasets
+    val_dataset = process_dataset(
+        ds_config["val_datasets"], ds_config["select_n_per_v_ds"], ds_config["valid_split_name"]
+    )
+
+    # Calculate trainings steps from epochs
+    config["training"]["train_steps"] = calculate_training_steps(config)
+
+    # Get tokenizer
+    tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
+
+    # Get dataloaders
+    train_loader = get_dataloader(
+        hu_dataset=train_dataset,
+        tokenizer=tokenizer,
+        n_mels=128 if "v3" in config["model"]["init_name"] else 80,
+        batch_size=config["dataset"]["batch_size"],
+        no_timestamps_training=config["dataset"]["no_timestamp_training"],
+        max_prompt_length=config["dataset"]["max_prompt_length"],
+        prompt_use_rate=config["dataset"]["prompt_use_rate"],
+        no_timestamps_rate=config["dataset"]["no_timestamp_rate"],
+        num_workers=min(os.cpu_count(), 8),
+        spec_augment=config["augmentation"]["spec_augment"]["apply"],
+        time_mask_param=config["augmentation"]["spec_augment"]["time_mask_param"],
+        freq_mask_param=config["augmentation"]["spec_augment"]["freq_mask_param"],
+        time_warper_w=config["augmentation"]["spec_augment"]["time_warp_w"],
+        p=config["augmentation"]["spec_augment"]["p"],
+    )
+    val_loader = get_dataloader(
+        hu_dataset=val_dataset,
+        tokenizer=tokenizer,
+        n_mels=128 if "v3" in config["model"]["init_name"] else 80,
+        batch_size=config["dataset"]["batch_size_eval"],
+        no_timestamps_training=True,
+        prompt_use_rate=0,
+        no_timestamps_rate=0,
+        num_workers=min(os.cpu_count(), 8),
+        spec_augment=False,
+    )
+
     # Train
     main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["save_dir"], config["training"])
 
-    try:
-        file_name = "_".join(
-            [
-                "memory",
-                str(config["model"]["bfloat16"]),
-                str(config["training"]["mixed_precision"]),
-                str(config["training"]["mp_dtype"]),
-                str(config["training"]["gradient_checkpointing"]),
-            ]
-        )
-        torch.cuda.memory._dump_snapshot(f"{config['base_path']}/{file_name}.pt")
-    except Exception as e:
-        print(e)
-
-    try:
-        torch.cuda.memory._record_memory_history(enabled=None)
-    except Exception as e:
-        pass
+    # Save memory log
+    if ENABLE_MEMORY_PROFILING:
+        handle_cuda_memory_operations(config)
 
     wandb.finish()
 
