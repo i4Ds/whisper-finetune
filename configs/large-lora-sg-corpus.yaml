@@ -4,6 +4,8 @@ model:
   lora: True
   lora_config:
     r: 32
+    alpha: 32
+    dropout: 0.05
     target_modules: ['query', 'key', 'value']
 dataset:
   train_datasets: [i4ds/sds-stt-spc-train-fold_0, i4ds/srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
