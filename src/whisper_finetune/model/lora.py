@@ -12,13 +12,42 @@ def replace_attention_layers_with_lora(module, config, parent=None, parent_name=
     if isinstance(module, MultiHeadAttention):
         # Replace the specific layers if they match the target names
         if hasattr(module, "query") and "query" in config["target_modules"]:
-            setattr(module, "query", lora.Linear(module.query.in_features, module.query.out_features, r=config["r"]))
+            setattr(
+                module,
+                "query",
+                lora.Linear(
+                    module.query.in_features,
+                    module.query.out_features,
+                    r=config["r"],
+                    lora_alpha=config["alpha"],
+                    lora_dropout=config["dropout"],
+                ),
+            )
         if hasattr(module, "key") and "key" in config["target_modules"]:
             setattr(
-                module, "key", lora.Linear(module.key.in_features, module.key.out_features, r=config["r"], bias=False)
+                module,
+                "key",
+                lora.Linear(
+                    module.key.in_features,
+                    module.key.out_features,
+                    r=config["r"],
+                    lora_alpha=config["alpha"],
+                    lora_dropout=config["dropout"],
+                    bias=False,
+                ),
             )
         if hasattr(module, "value") and "value" in config["target_modules"]:
-            setattr(module, "value", lora.Linear(module.value.in_features, module.value.out_features, r=config["r"]))
+            setattr(
+                module,
+                "value",
+                lora.Linear(
+                    module.value.in_features,
+                    module.value.out_features,
+                    r=config["r"],
+                    lora_alpha=config["alpha"],
+                    lora_dropout=config["dropout"],
+                ),
+            )
 
 
 def print_trainable_params(model: nn.Module) -> None:
