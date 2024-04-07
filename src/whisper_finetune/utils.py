@@ -104,7 +104,7 @@ def handle_cuda_memory_operations(config: dict) -> None:
 
     # Attempt to dump CUDA memory snapshot
     try:
-        torch.cuda.memory._dump_snapshot(f"{config['base_path']}/{file_name}")
+        torch.cuda.memory._dump_snapshot(f"memory/{file_name}")
     except Exception as e:
         print(f"Failed to dump CUDA memory snapshot: {e}")
 
