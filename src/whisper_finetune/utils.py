@@ -97,6 +97,7 @@ def handle_cuda_memory_operations(config: dict) -> None:
         str(config["training"].get("mixed_precision", "NA")),
         str(config["training"].get("mp_dtype", "NA")),
         str(config["training"].get("gradient_checkpointing", "NA")),
+        str(config["training"].get("lora", "NA")),
     ]
     file_name = "_".join(file_name_elements) + ".pt"
 

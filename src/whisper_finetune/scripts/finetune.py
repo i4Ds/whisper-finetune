@@ -36,7 +36,7 @@ from whisper_finetune.utils import (
 )
 
 
-ENABLE_MEMORY_PROFILING = False
+ENABLE_MEMORY_PROFILING = True
 
 
 def main_loop(
