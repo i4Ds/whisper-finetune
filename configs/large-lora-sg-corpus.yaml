@@ -1,7 +1,7 @@
 model:
   init_name: large-v2
   bfloat16: False # If this is set, mixed_precision will use bfloat16
-  lora: True
+  lora: False
   lora_config:
     r: 32
     alpha: 64

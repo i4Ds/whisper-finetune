@@ -1,7 +1,7 @@
 model:
   init_name: tiny
   bfloat16: False # If this is set, mixed_precision will use bfloat16
-  lora: True
+  lora: False
   lora_config:
     r: 32
     alpha: 64
@@ -9,16 +9,16 @@ model:
     target_modules: ['query', 'key']
 dataset:
   train_datasets: [i4ds/sds-stt-spc-train-fold_0]
-  select_n_per_t_ds: [1000]
+  select_n_per_t_ds: [10000]
   val_datasets: [i4ds/sds-stt-spc-validation]
-  select_n_per_v_ds: [100]
+  select_n_per_v_ds: [1000]
   train_split_name: "train"
   valid_split_name: "validation"
   no_timestamp_training: False
   max_prompt_length: 223
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
-  batch_size: 32
+  batch_size: 16
   batch_size_eval: 16
 lr_scheduler:
   type: linear
