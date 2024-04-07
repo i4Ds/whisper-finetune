@@ -88,13 +88,8 @@ def main_loop(
 def main(config):
     set_seed(config["seed"])
     # Start GPU memory profiling
-    try:
-        torch.cuda.memory._record_memory_history(
-            max_entries=100000,
-            enabled=ENABLE_MEMORY_PROFILING,
-        )
-    except Exception as e:
-        print("Memory history recording failed:", e)
+    if ENABLE_MEMORY_PROFILING:
+        torch.cuda.memory._record_memory_history()
 
     torch.backends.cudnn.benchmark = False
 
@@ -119,20 +114,6 @@ def main(config):
 
     ## Get model
     whisper_model = whisper.load_model(config["model"]["init_name"], device="cpu")
-
-    # Check if we cast it to lora
-    if config["model"]["lora"]:
-        from whisper_finetune.model.lora import (
-            replace_attention_layers_with_lora,
-            has_lora_layers,
-            mark_only_lora_as_trainable,
-            print_trainable_params,
-        )
-
-        replace_attention_layers_with_lora(whisper_model, config["model"]["lora_config"])
-        mark_only_lora_as_trainable(whisper_model)
-        assert has_lora_layers(whisper_model), "Lora layers were somehow not correctly set."
-        print_trainable_params(whisper_model)
 
     # bfloat16 training?
     if config["model"]["bfloat16"]:
@@ -171,10 +152,26 @@ def main(config):
             whisper_model.dims.n_text_head,
             whisper_model.dims.n_text_layer,
         )
+
+    # We need to reload weights for deletected Decoder and Encoder.
     if config["training"]["gradient_checkpointing_decoder"] or config["training"]["gradient_checkpointing_encoder"]:
-        whisper_model = load_model_and_set_heads(whisper_model, config["model"]["init_name"], device="cuda")
-    else:
-        whisper_model.to("cuda")
+        whisper_model = load_model_and_set_heads(whisper_model, config["model"]["init_name"])
+
+    # Check if we have a lora training run or not.
+    if config["model"]["lora"]:
+        from whisper_finetune.model.lora import (
+            replace_attention_layers_with_lora,
+            has_lora_layers,
+            mark_only_lora_as_trainable,
+            print_trainable_params,
+        )
+
+        replace_attention_layers_with_lora(whisper_model, config["model"]["lora_config"])
+        mark_only_lora_as_trainable(whisper_model)
+        assert has_lora_layers(whisper_model), "Lora layers were somehow not correctly set."
+        print_trainable_params(whisper_model)
+
+    whisper_model.to("cuda")
 
     # Get datasets
     ds_config = config["dataset"]

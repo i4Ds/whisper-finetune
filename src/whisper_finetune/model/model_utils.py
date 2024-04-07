@@ -270,7 +270,7 @@ class CheckpointedTextDecoder(TextDecoder):
 def load_model_and_set_heads(
     model: Whisper,
     name: str,
-    device: Union[str, torch.device],
+    device: Union[str, torch.device] = 'cpu', 
     download_root: Optional[str] = None,
     in_memory: bool = False,
 ) -> Whisper:

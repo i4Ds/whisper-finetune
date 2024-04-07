@@ -4,21 +4,21 @@ model:
   lora: True
   lora_config:
     r: 32
-    alpha: 32
+    alpha: 64
     dropout: 0.05
-    target_modules: ['query', 'key', 'value']
+    target_modules: ['query', 'key']
 dataset:
   train_datasets: [i4ds/sds-stt-spc-train-fold_0, i4ds/srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_t_ds: [null, null, 30000]
   val_datasets: [i4ds/sds-stt-spc-validation, i4ds/srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
-  select_n_per_v_ds: [1000, 1000, 1000]
+  select_n_per_v_ds: [100, 100, 100]
   train_split_name: "train"
   valid_split_name: "validation"
   no_timestamp_training: False
   max_prompt_length: 223
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
-  batch_size: 16
+  batch_size: 32
   batch_size_eval: 16
 lr_scheduler:
   type: linear
@@ -43,9 +43,9 @@ training:
   save_all_checkpoints: False
   mixed_precision: True
   mp_dtype: fp16
-  gradient_checkpointing_encoder: False
+  gradient_checkpointing_encoder: True
   gradient_checkpointing_encoder_last_only: False
-  gradient_checkpointing_decoder: False
+  gradient_checkpointing_decoder: True
 augmentation:
   spec_augment:
     apply: True

@@ -49,6 +49,8 @@ def replace_attention_layers_with_lora(module, config, parent=None, parent_name=
                 ),
             )
 
+def mark_only_lora_as_trainable(model, bias="none"):
+    lora.mark_only_lora_as_trainable(model, bias=bias)
 
 def print_trainable_params(model: nn.Module) -> None:
     total_params = sum(p.numel() for p in model.parameters())
@@ -58,8 +60,6 @@ def print_trainable_params(model: nn.Module) -> None:
     )
 
 
-def mark_only_lora_as_trainable(model, bias="none"):
-    lora.mark_only_lora_as_trainable(model, bias=bias)
 
 
 def save_lora_model(model, path, bias="none"):
