@@ -9,20 +9,20 @@ model:
     target_modules: ['query', 'key']
 dataset:
   train_datasets: [i4ds/sds-stt-spc-train-fold_0]
-  select_n_per_t_ds: [10000]
+  select_n_per_t_ds: [1000]
   val_datasets: [i4ds/sds-stt-spc-validation]
-  select_n_per_v_ds: [1000]
+  select_n_per_v_ds: [100]
   train_split_name: "train"
   valid_split_name: "validation"
   no_timestamp_training: False
   max_prompt_length: 223
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
-  batch_size: 16
+  batch_size: 32
   batch_size_eval: 16
 lr_scheduler:
   type: linear
-  warmup_steps: 128
+  warmup_steps: 2
 optimizer:
   type: adamw
   8bit: True
@@ -36,7 +36,7 @@ training:
   accum_grad_steps: 16
   train_only_decoder: False
   max_grad_norm: 1.0
-  epochs: 1
+  epochs: 3
   eval_steps: 25
   eval_warmup: 0
   eval_steps_early: 50
