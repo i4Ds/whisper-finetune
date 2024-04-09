@@ -1,12 +1,12 @@
 import argparse
 import logging
 import os
+from functools import partial
 from pathlib import Path
-
 
 import torch
 import whisper
-
+from faster_whisper import WhisperModel
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from whisper import Whisper as WhisperModel
@@ -14,10 +14,11 @@ from whisper.tokenizer import get_tokenizer
 
 import wandb
 from whisper_finetune.data.data_loader import get_dataloader
+from whisper_finetune.data.utils import process_dataset
 from whisper_finetune.model.model_utils import (
     CheckpointedAudioEncoder,
-    CheckpointedTextDecoder,
     CheckpointedAudioEncoderLastBlock,
+    CheckpointedTextDecoder,
     evaluate,
     infinite_iter,
     load_model_and_set_heads,
@@ -27,16 +28,16 @@ from whisper_finetune.model.model_utils import (
 from whisper_finetune.model.optimizer import get_optimizer
 from whisper_finetune.model.scheduler import get_scheduler
 from whisper_finetune.utils import (
+    calculate_training_steps,
+    get_unique_base_path,
+    handle_cuda_memory_operations,
+    print_size_of_model,
+    print_trainable_parameters,
     read_config,
     set_seed,
-    get_unique_base_path,
-    process_dataset,
-    calculate_training_steps,
-    handle_cuda_memory_operations,
 )
 
-
-ENABLE_MEMORY_PROFILING = True
+ENABLE_MEMORY_PROFILING = False
 
 
 def main_loop(
@@ -88,6 +89,7 @@ def main_loop(
 def main(config):
     set_seed(config["seed"])
     # Start GPU memory profiling
+    torch.cuda.reset_peak_memory_stats("cuda")
     if ENABLE_MEMORY_PROFILING:
         torch.cuda.memory._record_memory_history()
 
@@ -157,19 +159,42 @@ def main(config):
     if config["training"]["gradient_checkpointing_decoder"] or config["training"]["gradient_checkpointing_encoder"]:
         whisper_model = load_model_and_set_heads(whisper_model, config["model"]["init_name"])
 
-    # Check if we have a lora training run or not.
+    if config["model"].get("quantize_model", False):
+        f = print_size_of_model(whisper_model, "fp32")
+        whisper_model = torch.quantization.quantize(whisper_model, dtype=torch.qint8)
+        print(whisper_model)
+        q = print_size_of_model(whisper_model, "int8")
+        print("{0:.2f} times smaller".format(f / q))
+        del q, f
+
+        # Check if we have a lora training run or not.
     if config["model"]["lora"]:
+        from minlora import LoRAParametrization, add_lora, get_lora_params
+
         from whisper_finetune.model.lora import (
-            replace_attention_layers_with_lora,
-            has_lora_layers,
-            mark_only_lora_as_trainable,
-            print_trainable_params,
+            freeze_except_parametrized,
+            set_all_requires_grad_to_false,
         )
 
-        replace_attention_layers_with_lora(whisper_model, config["model"]["lora_config"])
-        mark_only_lora_as_trainable(whisper_model)
-        assert has_lora_layers(whisper_model), "Lora layers were somehow not correctly set."
-        print_trainable_params(whisper_model)
+        # Create LORA config
+        linear = (
+            torch.nn.Linear
+            if not config["model"].get("quantize_model", False)
+            else torch.ao.nn.quantized.DynamicQuantizedLinear
+        )
+        lora_config = {
+            linear: {
+                "weight": partial(LoRAParametrization.from_linear, **config["model"]["lora_config"]),
+            },
+        }
+
+        add_lora(whisper_model, lora_config=lora_config)
+        set_all_requires_grad_to_false(whisper_model)
+        for param in get_lora_params(whisper_model):
+            print(param)
+            param.requires_grad = True
+        print("---LORA---")
+        print_trainable_parameters(whisper_model)
 
     whisper_model.to("cuda")
 
@@ -230,6 +255,11 @@ def main(config):
 
     # Train
     main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["save_dir"], config["training"])
+
+    # Print out peak memory stats
+    peak_memory_mb = torch.cuda.max_memory_allocated("cuda") / (1024**2)  # Convert to megabytes
+
+    print(f"Peak memory usage: {peak_memory_mb:.2f} MB")
 
     # Save memory log
     if ENABLE_MEMORY_PROFILING:

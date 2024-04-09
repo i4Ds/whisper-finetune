@@ -3,16 +3,16 @@ from typing import Dict
 import torch
 from whisper import Whisper as WhisperModel
 
+from whisper_finetune.utils import print_trainable_parameters
+
 
 def get_optimizer(model: WhisperModel, optimizer_conf: Dict):
     # Filter parameters to include only those that require gradients
     parameters_to_optimize = [p for p in model.parameters() if p.requires_grad]
 
-    # Print out the count of parameters being optimized
-    num_params_to_optimize = sum(p.numel() for p in parameters_to_optimize)
-    total_num_params = sum(p.numel() for p in model.parameters())
-    print(f"Number of parameters being optimized: {num_params_to_optimize:,}")
-    print(f"Total number of parameters in the model: {total_num_params:,}")
+    print("---OPTIMIZER----")
+    print_trainable_parameters(model)
+
     if optimizer_conf["type"] == "adam":
         if optimizer_conf["8bit"]:
             try:

@@ -1,14 +1,14 @@
+import math
+import os
 import random
-from datasets import concatenate_datasets, load_dataset
+import uuid
+from socket import gethostname
+from typing import Dict
+
 import numpy as np
 import torch
 import torch.distributed as dist
 import yaml
-import uuid
-import os
-from socket import gethostname
-import math
-from typing import Dict
 
 
 def calculate_training_steps(config: Dict, train_dataset) -> None:
@@ -63,29 +63,6 @@ def add_fixed_value(batch, col_name, fixed_value):
     return batch
 
 
-# Function to process individual datasets
-def process_dataset(dataset_names, select_n_per_ds, split_name):
-    """Function to process individual datasets. Mostly, we were not consistent in naming and sometimes did not add all required keys."""
-    processed_datasets = []
-    for N, dataset_name in zip(select_n_per_ds, dataset_names):
-        dataset = load_dataset(dataset_name, split=split_name)
-        if N is not None:
-            # Ensure N does not exceed dataset size
-            N = min(N, len(dataset))
-            selected_indices = np.random.choice(len(dataset), size=N, replace=False)
-            dataset = dataset.select(selected_indices)
-        if "sentence" in dataset.column_names:
-            dataset = dataset.rename_column("sentence", "text")
-
-        if "language" not in dataset.column_names:  # Bad hack because we forgot to add language to the dataset.
-            dataset = dataset.map(
-                add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
-            )
-
-        processed_datasets.append(dataset)
-    return concatenate_datasets(processed_datasets)
-
-
 def handle_cuda_memory_operations(config: dict) -> None:
     """
     Handles CUDA memory snapshot dumping and stops recording memory history based on the provided config.
@@ -94,7 +71,7 @@ def handle_cuda_memory_operations(config: dict) -> None:
     file_name_elements = [
         "memory",
         str(config["model"].get("bfloat16", "NA")),
-        str(config["model"].get("lora", "NA")), 
+        str(config["model"].get("lora", "NA")),
         str(config["dataset"].get("batch_size", "NA")),
         str(config["training"].get("mixed_precision", "NA")),
         str(config["training"].get("mp_dtype", "NA")),
@@ -113,3 +90,21 @@ def handle_cuda_memory_operations(config: dict) -> None:
     except Exception as e:
         # Optionally, you could log this exception if necessary.
         print(f"Failed to stop CUDA memory snapshotting: {e}")
+
+
+def print_size_of_model(model, label=""):
+    torch.save(model.state_dict(), "temp.p")
+    size = os.path.getsize("temp.p")
+    print("model: ", label, " \t", "Size (KB):", size / 1e3)
+    os.remove("temp.p")
+    return size
+
+
+def print_trainable_parameters(model):
+    # Filter parameters to include only those that require gradients
+    parameters_to_optimize = [p for p in model.parameters() if p.requires_grad]
+
+    # Print out the count of parameters being optimized
+    num_params_to_optimize = sum(p.numel() for p in parameters_to_optimize)
+    total_num_params = sum(p.numel() for p in model.parameters())
+    print(f"Number of trainable parameters: {num_params_to_optimize:,} out of total {total_num_params:,}.")

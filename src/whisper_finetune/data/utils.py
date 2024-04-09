@@ -1,48 +1,46 @@
 import torch
+from datasets import concatenate_datasets, load_dataset
 
 
 class TimeWarpAugmenter:
     def __init__(self, W=50):
-        '''
+        """
         Initialize the TimeWarpAugmenter with the strength of warp (W).
-        '''
+        """
         self.W = W
-        
+
     def __call__(self, specs):
-        '''
+        """
         Apply time warp augmentation when the class is called.
 
         param:
         specs: spectrogram of size (batch, channel, freq_bin, length)
-        '''
+        """
         return self.time_warp(specs)
-    
+
     @staticmethod
     def h_poly(t):
-        tt = t.unsqueeze(-2)**torch.arange(4, device=t.device).view(-1,1)
-        A = torch.tensor([
-            [1, 0, -3, 2],
-            [0, 1, -2, 1],
-            [0, 0, 3, -2],
-            [0, 0, -1, 1]
-        ], dtype=t.dtype, device=t.device)
+        tt = t.unsqueeze(-2) ** torch.arange(4, device=t.device).view(-1, 1)
+        A = torch.tensor([[1, 0, -3, 2], [0, 1, -2, 1], [0, 0, 3, -2], [0, 0, -1, 1]], dtype=t.dtype, device=t.device)
         return A @ tt
 
     @staticmethod
     def hspline_interpolate_1D(x, y, xs):
-        '''
+        """
         Input x and y must be of shape (batch, n) or (n)
-        '''
+        """
         m = (y[..., 1:] - y[..., :-1]) / (x[..., 1:] - x[..., :-1])
-        m = torch.cat([m[...,[0]], (m[...,1:] + m[...,:-1]) / 2, m[...,[-1]]], -1)
+        m = torch.cat([m[..., [0]], (m[..., 1:] + m[..., :-1]) / 2, m[..., [-1]]], -1)
         idxs = torch.searchsorted(x[..., 1:], xs)
         # print(torch.abs(x.take_along_dim(idxs+1, dim=-1) - x.gather(dim=-1, index=idxs+1)))
-        dx = (x.gather(dim=-1, index=idxs+1) - x.gather(dim=-1, index=idxs))
+        dx = x.gather(dim=-1, index=idxs + 1) - x.gather(dim=-1, index=idxs)
         hh = TimeWarpAugmenter.h_poly((xs - x.gather(dim=-1, index=idxs)) / dx)
-        return hh[...,0,:] * y.gather(dim=-1, index=idxs) \
-            + hh[...,1,:] * m.gather(dim=-1, index=idxs) * dx \
-            + hh[...,2,:] * y.gather(dim=-1, index=idxs+1) \
-            + hh[...,3,:] * m.gather(dim=-1, index=idxs+1) * dx
+        return (
+            hh[..., 0, :] * y.gather(dim=-1, index=idxs)
+            + hh[..., 1, :] * m.gather(dim=-1, index=idxs) * dx
+            + hh[..., 2, :] * y.gather(dim=-1, index=idxs + 1)
+            + hh[..., 3, :] * m.gather(dim=-1, index=idxs + 1) * dx
+        )
         # dx = (x.take_along_dim(idxs+1, dim=-1) - x.take_along_dim(idxs, dim=-1))
         # hh = h_poly((xs - x.take_along_dim(idxs, dim=-1)) / dx)
         # return hh[...,0,:] * y.take_along_dim(idxs, dim=-1) \
@@ -51,15 +49,15 @@ class TimeWarpAugmenter:
         #     + hh[...,3,:] * m.take_along_dim(idxs+1, dim=-1) * dx
 
     def time_warp(self, specs, W=80):
-        '''
+        """
         Timewarp augmentation by https://github.com/IMLHF/SpecAugmentPyTorch/blob/master/spec_augment_pytorch.py
 
         param:
         specs: spectrogram of size (batch, channel, freq_bin, length)
         W: strength of warp
-        '''
+        """
         device = specs.device
-        specs = specs.unsqueeze(0) # Add dim for channels
+        specs = specs.unsqueeze(0)  # Add dim for channels
         batch_size, _, num_rows, spec_len = specs.shape
 
         warp_p = torch.randint(W, spec_len - W, (batch_size,), device=device)
@@ -68,18 +66,57 @@ class TimeWarpAugmenter:
         # warp_d = torch.randn(1)*W # Not using this since the paper author make random number with uniform distribution
         warp_d = torch.randint(-W, W, (batch_size,), device=device)
         # print("warp_d", warp_d)
-        x = torch.stack([torch.tensor([0], device=device).expand(batch_size),
-                        warp_p, torch.tensor([spec_len-1], device=device).expand(batch_size)], 1)
-        y = torch.stack([torch.tensor([-1.], device=device).expand(batch_size),
-                        (warp_p-warp_d)*2/(spec_len-1.)-1., torch.tensor([1.], device=device).expand(batch_size)], 1)
+        x = torch.stack(
+            [
+                torch.tensor([0], device=device).expand(batch_size),
+                warp_p,
+                torch.tensor([spec_len - 1], device=device).expand(batch_size),
+            ],
+            1,
+        )
+        y = torch.stack(
+            [
+                torch.tensor([-1.0], device=device).expand(batch_size),
+                (warp_p - warp_d) * 2 / (spec_len - 1.0) - 1.0,
+                torch.tensor([1.0], device=device).expand(batch_size),
+            ],
+            1,
+        )
         # print((warp_p-warp_d)*2/(spec_len-1.)-1.)
 
         # Interpolate from 3 points to spec_len
-        xs = torch.linspace(0, spec_len-1, spec_len, device=device).unsqueeze(0).expand(batch_size, -1)
+        xs = torch.linspace(0, spec_len - 1, spec_len, device=device).unsqueeze(0).expand(batch_size, -1)
         ys = TimeWarpAugmenter.hspline_interpolate_1D(x, y, xs)
 
         grid = torch.cat(
-            (ys.view(batch_size,1,-1,1).expand(-1,num_rows,-1,-1),
-            torch.linspace(-1, 1, num_rows, device=device).view(-1,1,1).expand(batch_size,-1,spec_len,-1)), -1)
+            (
+                ys.view(batch_size, 1, -1, 1).expand(-1, num_rows, -1, -1),
+                torch.linspace(-1, 1, num_rows, device=device).view(-1, 1, 1).expand(batch_size, -1, spec_len, -1),
+            ),
+            -1,
+        )
 
-        return torch.nn.functional.grid_sample(specs, grid, align_corners=True).squeeze(0) # Remove dim for channels
+        return torch.nn.functional.grid_sample(specs, grid, align_corners=True).squeeze(0)  # Remove dim for channels
+
+
+# Function to process individual datasets
+def process_dataset(dataset_names, select_n_per_ds, split_name):
+    """Function to process individual datasets. Mostly, we were not consistent in naming and sometimes did not add all required keys."""
+    processed_datasets = []
+    for N, dataset_name in zip(select_n_per_ds, dataset_names):
+        dataset = load_dataset(dataset_name, split=split_name)
+        if N is not None:
+            # Ensure N does not exceed dataset size
+            N = min(N, len(dataset))
+            selected_indices = np.random.choice(len(dataset), size=N, replace=False)
+            dataset = dataset.select(selected_indices)
+        if "sentence" in dataset.column_names:
+            dataset = dataset.rename_column("sentence", "text")
+
+        if "language" not in dataset.column_names:  # Bad hack because we forgot to add language to the dataset.
+            dataset = dataset.map(
+                add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
+            )
+
+        processed_datasets.append(dataset)
+    return concatenate_datasets(processed_datasets)

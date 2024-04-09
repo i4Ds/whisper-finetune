@@ -17,11 +17,13 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from whisper import _ALIGNMENT_HEADS, _MODELS, _download, available_models
 from whisper.model import AudioEncoder, TextDecoder, Whisper
-from whisper.version import __version__
 from whisper.tokenizer import get_tokenizer
-from whisper_finetune.eval.utils import normalize_text, VOCAB_SPECS
-from whisper_finetune.eval.wer import WER
+from whisper.version import __version__
+
 import wandb
+from whisper_finetune.eval.utils import VOCAB_SPECS, normalize_text
+from whisper_finetune.eval.wer import WER
+
 
 def train_step(
     model: Whisper,
@@ -54,7 +56,7 @@ def train_step(
     for _ in range(accum_grad_steps):
         retry_count = 0
         while retry_count < max_retries:
-            try: # Illegal memory access happens sometimes.
+            try:  # Illegal memory access happens sometimes.
                 x, y_in, y_out = next(train_iter)
                 x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
                 with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mp_dtype):
@@ -125,21 +127,31 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
             loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 
             # Convert logits to token IDs
-            pred_token_ids = torch.argmax(logits, dim=-1) 
+            pred_token_ids = torch.argmax(logits, dim=-1)
 
             # Filter out -100 values, special tokens and decode.
-            batch_pred = [tokenizer.decode([id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]) for ids in pred_token_ids]
-            batch_true = [tokenizer.decode([id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]) for ids in y_out]
+            batch_pred = [
+                tokenizer.decode(
+                    [id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]
+                )
+                for ids in pred_token_ids
+            ]
+            batch_true = [
+                tokenizer.decode(
+                    [id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]
+                )
+                for ids in y_out
+            ]
 
             # Normalize and filter out empty sentences in the reference
-            mask = [True if x != '' else False for x in batch_true]
+            mask = [True if x != "" else False for x in batch_true]
             batch_pred = [normalize_text(x, **VOCAB_SPECS["v0"]) for x, m in zip(batch_pred, mask) if m]
             batch_true = [normalize_text(x, **VOCAB_SPECS["v0"]) for x, m in zip(batch_true, mask) if m]
 
-            # Append 
+            # Append
             pred_sentences.extend(batch_pred)
             true_sentences.extend(batch_true)
-            
+
         # Check loss for NANs
         if torch.isnan(loss).any():
             nan_mask = torch.isnan(loss)
@@ -147,27 +159,31 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
                 if has_nan:
                     error_sample_pred = batch_pred[idx]
                     error_sample_true = batch_true[idx]
-                    
+
                     # Detach, move to CPU, and convert to numpy for logging
                     x_logged = x[idx].detach().cpu().numpy() if x[idx].requires_grad else x[idx].cpu().numpy()
-                    y_out_logged = y_out[idx].detach().cpu().numpy() if y_out[idx].requires_grad else y_out[idx].cpu().numpy()
-                    
-                    wandb.log({
-                        "error_sample_idx": idx,
-                        "error_sample_pred": error_sample_pred,
-                        "error_sample_true": error_sample_true,
-                        # Depending on the shape and data, you might log directly or use a visualization method
-                        "x_sample": x_logged,  
-                        "y_sample": y_out_logged,
-                    })
+                    y_out_logged = (
+                        y_out[idx].detach().cpu().numpy() if y_out[idx].requires_grad else y_out[idx].cpu().numpy()
+                    )
+
+                    wandb.log(
+                        {
+                            "error_sample_idx": idx,
+                            "error_sample_pred": error_sample_pred,
+                            "error_sample_true": error_sample_true,
+                            # Depending on the shape and data, you might log directly or use a visualization method
+                            "x_sample": x_logged,
+                            "y_sample": y_out_logged,
+                        }
+                    )
                     raise Exception("Aborting because of NANs in validation loss.")
         else:
             total_loss += loss.item()
 
     wer = wer._compute(
-            predictions=pred_sentences,
-            references=true_sentences,
-        )
+        predictions=pred_sentences,
+        references=true_sentences,
+    )
 
     del x, y_in, y_out, pred_sentences, true_sentences, batch_pred, batch_true
     return total_loss / len(dev_loader), wer
@@ -217,7 +233,7 @@ class CheckpointedAudioEncoder(AudioEncoder):
         x = self.ln_post(x)
         return x
 
-        
+
 class CheckpointedAudioEncoderLastBlock(AudioEncoder):
     def forward(self, x: Tensor):
         """
@@ -231,10 +247,9 @@ class CheckpointedAudioEncoderLastBlock(AudioEncoder):
         assert x.shape[1:] == self.positional_embedding.shape, "incorrect audio shape"
         x = (x + self.positional_embedding).to(x.dtype)
 
-        
         for block in self.blocks[:-1]:
             x = block(x)
-            
+
         x = checkpoint(self.blocks[-1], x, use_reentrant=False)
 
         x = self.ln_post(x)
@@ -270,7 +285,7 @@ class CheckpointedTextDecoder(TextDecoder):
 def load_model_and_set_heads(
     model: Whisper,
     name: str,
-    device: Union[str, torch.device] = 'cpu', 
+    device: Union[str, torch.device] = "cpu",
     download_root: Optional[str] = None,
     in_memory: bool = False,
 ) -> Whisper:
