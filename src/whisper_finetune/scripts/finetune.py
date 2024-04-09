@@ -172,7 +172,7 @@ def main(config):
         from minlora import LoRAParametrization, add_lora, get_lora_params
 
         from whisper_finetune.model.lora import (
-            set_all_requires_grad_to_false,
+            disable_all_but_parametrized_grads_except,
         )
 
         # Create LORA config
@@ -184,9 +184,7 @@ def main(config):
         }
 
         add_lora(whisper_model, lora_config=lora_config)
-        set_all_requires_grad_to_false(whisper_model)
-        for param in get_lora_params(whisper_model):
-            param.requires_grad = True
+        disable_all_but_parametrized_grads_except(whisper_model)
         print("---LORA---")
         print_trainable_parameters(whisper_model)
 
