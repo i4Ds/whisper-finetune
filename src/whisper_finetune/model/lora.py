@@ -6,7 +6,7 @@ def set_all_requires_grad_to_false(model):
         p.requires_grad = False
 
 
-def freeze_except_parametrized(model):
+def disable_all_but_parametrized_grads_except(model):
     for _, module in model.named_modules():
         # If the module itself is not parametrized
         if not is_parametrized(module):
