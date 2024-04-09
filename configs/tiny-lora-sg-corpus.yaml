@@ -1,8 +1,8 @@
 model:
-  init_name: tiny
-  bfloat16: False # If this is set, mixed_precision will use bfloat16
+  init_name: small
+  bfloat16: True # If this is set, mixed_precision_training will use bfloat16
   lora: True
-  quantize_model: True
+  quantize_model: False # Experimental.
   lora_config:
     rank: 32
     lora_alpha: 64
@@ -41,11 +41,11 @@ training:
   eval_warmup: 0
   eval_steps_early: 50
   save_all_checkpoints: False
-  mixed_precision: True
-  mp_dtype: fp16
-  gradient_checkpointing_encoder: False
-  gradient_checkpointing_encoder_last_only: False
-  gradient_checkpointing_decoder: False
+  mixed_precision_training: False
+  mp_dtype: bf16
+  gradient_checkpointing_encoder: True
+  gradient_checkpointing_encoder_last_only: True
+  gradient_checkpointing_decoder: True
 augmentation:
   spec_augment:
     apply: True

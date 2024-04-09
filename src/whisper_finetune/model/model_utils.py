@@ -36,7 +36,7 @@ def train_step(
     total_loss = 0.0
 
     # Read variables from t_config
-    mixed_precision = t_config["mixed_precision"]
+    mixed_precision_training = t_config["mixed_precision_training"]
     accum_grad_steps = t_config["accum_grad_steps"]
     train_only_decoder = t_config["train_only_decoder"]
     max_grad_norm = t_config["max_grad_norm"]
@@ -45,7 +45,7 @@ def train_step(
     # Setup grad scaler, if using fp16
     # bfloat16 is not supported by torch.cuda.amp.GradScaler: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
     # Unsure what the solution to this problem ? is
-    if mixed_precision and not model.is_bfloat:
+    if mixed_precision_training and not model.is_bfloat:
         print("Detected fp16 training. Using torch.cuda.amp.GradScaler.")
         scaler = torch.cuda.amp.GradScaler()
     else:
@@ -59,7 +59,7 @@ def train_step(
             try:  # Illegal memory access happens sometimes.
                 x, y_in, y_out = next(train_iter)
                 x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
-                with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mp_dtype):
+                with torch.autocast(device_type="cuda", enabled=mixed_precision_training, dtype=mp_dtype):
                     if train_only_decoder:
                         with torch.no_grad():
                             audio_features = model.embed_audio(x)
@@ -111,7 +111,7 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
     pred_sentences, true_sentences = [], []
 
     # Read variables from t_config
-    mixed_precision = t_config["mixed_precision"]
+    mixed_precision_training = t_config["mixed_precision_training"]
     mp_dtype = torch.float16 if t_config["mp_dtype"] == "fp16" else torch.bfloat16
 
     # Get tokenizer & eval metric
@@ -121,7 +121,7 @@ def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
 
     for x, y_in, y_out in tqdm(dev_loader):
         x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
-        with torch.autocast(device_type="cuda", enabled=mixed_precision, dtype=mp_dtype):
+        with torch.autocast(device_type="cuda", enabled=mixed_precision_training, dtype=mp_dtype):
             logits = model(x, y_in)
 
             loss = F.cross_entropy(logits.transpose(1, 2), y_out)
