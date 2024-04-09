@@ -58,11 +58,6 @@ def get_unique_base_path():
     return os.getenv("SLURM_JOB_ID", str(uuid.uuid4()))
 
 
-def add_fixed_value(batch, col_name, fixed_value):
-    batch[col_name] = [fixed_value] * len(batch["text"])
-    return batch
-
-
 def handle_cuda_memory_operations(config: dict) -> None:
     """
     Handles CUDA memory snapshot dumping and stops recording memory history based on the provided config.
@@ -73,7 +68,7 @@ def handle_cuda_memory_operations(config: dict) -> None:
         str(config["model"].get("bfloat16", "NA")),
         str(config["model"].get("lora", "NA")),
         str(config["dataset"].get("batch_size", "NA")),
-        str(config["training"].get("mixed_precision", "NA")),
+        str(config["training"].get("mixed_precision_training", "NA")),
         str(config["training"].get("mp_dtype", "NA")),
     ]
     file_name = "_".join(file_name_elements) + ".pt"
@@ -95,7 +90,7 @@ def handle_cuda_memory_operations(config: dict) -> None:
 def print_size_of_model(model, label=""):
     torch.save(model.state_dict(), "temp.p")
     size = os.path.getsize("temp.p")
-    print("model: ", label, " \t", "Size (KB):", size / 1e3)
+    print("model: ", label, " \t", "Size (MB):", size / 1e6)
     os.remove("temp.p")
     return size
 

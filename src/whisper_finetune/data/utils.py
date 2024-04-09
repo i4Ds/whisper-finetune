@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from datasets import concatenate_datasets, load_dataset
 
@@ -120,3 +121,8 @@ def process_dataset(dataset_names, select_n_per_ds, split_name):
 
         processed_datasets.append(dataset)
     return concatenate_datasets(processed_datasets)
+
+
+def add_fixed_value(batch, col_name, fixed_value):
+    batch[col_name] = [fixed_value] * len(batch["text"])
+    return batch

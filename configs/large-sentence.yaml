@@ -1,6 +1,6 @@
 model:
   init_name: large-v2
-  bfloat16: False # If this is set, mixed_precision will use bfloat16
+  bfloat16: False # If this is set, mixed_precision_training will use bfloat16
   lora: False
 dataset:
   train_datasets: [i4ds/sds-spc-stt4sg-sentence-level-train-val]
@@ -36,7 +36,7 @@ training:
   eval_warmup: 0
   eval_steps_early: 50
   save_all_checkpoints: False
-  mixed_precision: True
+  mixed_precision_training: True
   mp_dtype: fp16
   gradient_checkpointing_encoder: True
   gradient_checkpointing_encoder_last_only: False

@@ -7,6 +7,7 @@ from pathlib import Path
 import torch
 import whisper
 from faster_whisper import WhisperModel
+from torch.ao.nn.quantized.dynamic.modules.linear import Linear as QLinear
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from whisper import Whisper as WhisperModel
@@ -119,12 +120,13 @@ def main(config):
 
     # bfloat16 training?
     if config["model"]["bfloat16"]:
+        f = print_size_of_model(whisper_model)
         whisper_model = whisper_model.bfloat16()
+        q = print_size_of_model(whisper_model)
+        print("Bfloat16 is {0:.2f} times smaller".format(f / q))
         whisper_model.is_bfloat = True
     else:
         whisper_model.is_bfloat = False
-
-    print("Is model bfloat16?", whisper_model.is_bfloat)
 
     # If gradient checkpointing is enabled, wrap the model with checkpointing
     if config["training"]["gradient_checkpointing_encoder"]:
@@ -161,8 +163,7 @@ def main(config):
 
     if config["model"].get("quantize_model", False):
         f = print_size_of_model(whisper_model, "fp32")
-        whisper_model = torch.quantization.quantize(whisper_model, dtype=torch.qint8)
-        print(whisper_model)
+        whisper_model = torch.quantization.quantize_dynamic(whisper_model, dtype=torch.qint8)
         q = print_size_of_model(whisper_model, "int8")
         print("{0:.2f} times smaller".format(f / q))
         del q, f
@@ -172,16 +173,11 @@ def main(config):
         from minlora import LoRAParametrization, add_lora, get_lora_params
 
         from whisper_finetune.model.lora import (
-            freeze_except_parametrized,
             set_all_requires_grad_to_false,
         )
 
         # Create LORA config
-        linear = (
-            torch.nn.Linear
-            if not config["model"].get("quantize_model", False)
-            else torch.ao.nn.quantized.DynamicQuantizedLinear
-        )
+        linear = torch.nn.Linear if not config["model"].get("quantize_model", False) else QLinear
         lora_config = {
             linear: {
                 "weight": partial(LoRAParametrization.from_linear, **config["model"]["lora_config"]),
@@ -191,7 +187,6 @@ def main(config):
         add_lora(whisper_model, lora_config=lora_config)
         set_all_requires_grad_to_false(whisper_model)
         for param in get_lora_params(whisper_model):
-            print(param)
             param.requires_grad = True
         print("---LORA---")
         print_trainable_parameters(whisper_model)
