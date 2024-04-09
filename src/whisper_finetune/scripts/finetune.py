@@ -6,7 +6,6 @@ from pathlib import Path
 
 import torch
 import whisper
-from faster_whisper import WhisperModel
 from torch.ao.nn.quantized.dynamic.modules.linear import Linear as QLinear
 from torch.utils.data import DataLoader
 from tqdm import tqdm

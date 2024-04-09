@@ -1,24 +1,24 @@
 model:
   init_name: large-v2
-  bfloat16: False # If this is set, mixed_precision_training will use bfloat16
-  lora: False
+  bfloat16: True # If this is set, mixed_precision_training will use bfloat16
+  lora: True
+  quantize_model: False # Experimental.
   lora_config:
-    r: 32
-    alpha: 64
-    dropout: 0.05
-    target_modules: ['query', 'key']
+    rank: 32
+    lora_alpha: 64
+    lora_dropout_p: 0.05
 dataset:
-  train_datasets: [i4ds/sds-stt-spc-train-fold_0, i4ds/srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
-  select_n_per_t_ds: [null, null, 30000]
-  val_datasets: [i4ds/sds-stt-spc-validation, i4ds/srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
-  select_n_per_v_ds: [100, 100, 100]
+  train_datasets: [i4ds/sds-stt-spc-train-fold_0]
+  select_n_per_t_ds: [100]
+  val_datasets: [i4ds/sds-stt-spc-validation]
+  select_n_per_v_ds: [100]
   train_split_name: "train"
   valid_split_name: "validation"
   no_timestamp_training: False
   max_prompt_length: 223
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
-  batch_size: 32
+  batch_size: 24
   batch_size_eval: 16
 lr_scheduler:
   type: linear
@@ -29,7 +29,7 @@ optimizer:
   params:
     lr: 2.0e-4
     weight_decay: 0.1
-    betas: (0.9, 0.98)
+    betas: [0.9, 0.98]
     eps: 1.0e-9
     amsgrad: False
 training:
@@ -41,10 +41,10 @@ training:
   eval_warmup: 0
   eval_steps_early: 50
   save_all_checkpoints: False
-  mixed_precision_training: True
-  mp_dtype: fp16
+  mixed_precision_training: False
+  mp_dtype: bf16
   gradient_checkpointing_encoder: True
-  gradient_checkpointing_encoder_last_only: False
+  gradient_checkpointing_encoder_last_only: True
   gradient_checkpointing_decoder: True
 augmentation:
   spec_augment:
