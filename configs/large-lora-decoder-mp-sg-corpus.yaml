@@ -18,7 +18,7 @@ dataset:
   max_prompt_length: 223
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
-  batch_size: 32
+  batch_size: 16
   batch_size_eval: 16
 lr_scheduler:
   type: linear
@@ -33,7 +33,7 @@ optimizer:
     eps: 1.0e-9
     amsgrad: False
 training:
-  accum_grad_steps: 8
+  accum_grad_steps: 16
   train_only_decoder: True
   max_grad_norm: 1.0
   epochs: 3
