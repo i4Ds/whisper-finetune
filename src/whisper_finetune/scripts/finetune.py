@@ -174,15 +174,16 @@ def main(config):
         from whisper_finetune.model.lora import (
             disable_all_but_parametrized_grads,
         )
+        from whisper.model import Linear as WLinear
 
         # Create LORA config
-        linear = torch.nn.Linear if not config["model"].get("quantize_model", False) else QLinear
         lora_config = {
-            linear: {
+            WLinear: {
                 "weight": partial(LoRAParametrization.from_linear, **config["model"]["lora_config"]),
             },
         }
 
+        print_trainable_parameters(whisper_model)
         add_lora(whisper_model, lora_config=lora_config)
         disable_all_but_parametrized_grads(whisper_model)
         print("---LORA---")
