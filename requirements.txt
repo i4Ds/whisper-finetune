@@ -10,4 +10,3 @@ wandb==0.16.2
 evaluate==0.4.1
 jiwer==3.0.3
 torch-audiomentations==0.11.1
-min_lora @ git+https://github.com/cccntu/minLoRA/commit/d47a4c93df87540bb396172cfac1f3246e7db5f9

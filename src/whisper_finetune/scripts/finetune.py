@@ -35,6 +35,7 @@ from whisper_finetune.utils import (
     print_trainable_parameters,
     read_config,
     set_seed,
+    disable_all_grads
 )
 
 ENABLE_MEMORY_PROFILING = False
@@ -184,10 +185,16 @@ def main(config):
         }
 
         print_trainable_parameters(whisper_model)
-        add_lora(whisper_model, lora_config=lora_config)
+        if config['training']['train_only_decoder']:
+            add_lora(whisper_model.decoder, lora_config=lora_config)
+        else:
+            add_lora(whisper_model, lora_config=lora_config)
         disable_all_but_parametrized_grads(whisper_model)
         print("---LORA---")
         print_trainable_parameters(whisper_model)
+    
+    if config['training']['train_only_decoder']:
+        disable_all_grads(whisper_model.encoder)
 
     whisper_model.to("cuda")
 
