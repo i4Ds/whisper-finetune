@@ -103,3 +103,9 @@ def print_trainable_parameters(model):
     num_params_to_optimize = sum(p.numel() for p in parameters_to_optimize)
     total_num_params = sum(p.numel() for p in model.parameters())
     print(f"Number of trainable parameters: {num_params_to_optimize:,} out of total {total_num_params:,}.")
+
+
+def disable_all_grads(model):
+    for p in model.parameters():
+        p.requires_grad = False
+

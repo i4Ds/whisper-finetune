@@ -38,15 +38,14 @@ def train_step(
     # Read variables from t_config
     mixed_precision_training = t_config["mixed_precision_training"]
     accum_grad_steps = t_config["accum_grad_steps"]
-    train_only_decoder = t_config["train_only_decoder"]
     max_grad_norm = t_config["max_grad_norm"]
     mp_dtype = torch.float16 if t_config["mp_dtype"] == "fp16" else torch.bfloat16
 
     # Setup grad scaler, if using fp16
     # bfloat16 is not supported by torch.cuda.amp.GradScaler: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
     # Unsure what the solution to this problem ? is
-    if mixed_precision_training and not model.is_bfloat:
-        print("Detected fp16 training. Using torch.cuda.amp.GradScaler.")
+    if mixed_precision_training:
+        print("Detected mixed precision training. Using torch.cuda.amp.GradScaler.")
         scaler = torch.cuda.amp.GradScaler()
     else:
         scaler = None
@@ -60,11 +59,7 @@ def train_step(
                 x, y_in, y_out = next(train_iter)
                 x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
                 with torch.autocast(device_type="cuda", enabled=mixed_precision_training, dtype=mp_dtype):
-                    if train_only_decoder:
-                        with torch.no_grad():
-                            audio_features = model.embed_audio(x)
-                    else:
-                        audio_features = model.embed_audio(x)
+                    audio_features = model.embed_audio(x)
                     logits = model.logits(y_in, audio_features=audio_features)
                     loss = F.cross_entropy(logits.transpose(1, 2), y_out)
 

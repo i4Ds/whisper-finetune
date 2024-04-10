@@ -1,6 +1,6 @@
 model:
-  init_name: small
-  bfloat16: True # If this is set, mixed_precision_training will use bfloat16
+  init_name: tiny
+  bfloat16: False # If this is set, mixed_precision_training will use bfloat16
   lora: True
   quantize_model: False # Experimental.
   lora_config:
@@ -41,10 +41,10 @@ training:
   eval_warmup: 0
   eval_steps_early: 50
   save_all_checkpoints: False
-  mixed_precision_training: False
+  mixed_precision_training: True
   mp_dtype: bf16
   gradient_checkpointing_encoder: True
-  gradient_checkpointing_encoder_last_only: True
+  gradient_checkpointing_encoder_last_only: False # Somehow, does not save a lot of memory (~1%).
   gradient_checkpointing_decoder: True
 augmentation:
   spec_augment:
