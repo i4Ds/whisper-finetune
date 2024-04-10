@@ -5,7 +5,7 @@
 #SBATCH --time=72:00:00         # total run time limit (HH:MM:SS)
 #SBATCH --partition=a100       # or titanx
 #SBATCH --gres=gpu:1            # number of gpus per node
-#SBATCH --qos=1week	           # qos level
+#SBATCH --qos=1week         # qos level
 
 # ACTIVATE ANACONDA
 eval "$(conda shell.bash hook)"

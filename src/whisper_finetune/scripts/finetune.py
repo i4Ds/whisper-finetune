@@ -3,7 +3,7 @@ import logging
 import os
 from functools import partial
 from pathlib import Path
-
+import subprocess
 import torch
 import whisper
 from torch.ao.nn.quantized.dynamic.modules.linear import Linear as QLinear
@@ -108,6 +108,17 @@ def main(config):
         level=logging.DEBUG,
         format="%(asctime)s\t%(message)s",
     )
+    # Print SLURM stuff
+    # Check if the script is running on a Slurm cluster
+    if "SLURM_JOB_ID" in os.environ:
+        # Get the current node name
+        node_name = os.environ["SLURMD_NODENAME"]
+        print(f"Current Node: {node_name}")
+        
+        # Fetch general stats about the node using the scontrol command
+        stats = subprocess.check_output(["scontrol", "show", "node", node_name]).decode('utf-8')
+        print("General Stats:")
+        print(stats)
 
     # Print CUDA version, PyTorch version, and GPU name
     print("CUDA version:", torch.version.cuda)
