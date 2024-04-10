@@ -1,19 +1,24 @@
 model:
   init_name: large-v2
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
-  lora: False
+  lora: True
+  quantize_model: False # Experimental.
+  lora_config:
+    rank: 32
+    lora_alpha: 64
+    lora_dropout_p: 0.05
 dataset:
-  train_datasets: [i4ds/sds-stt-spc-train-fold_0]
-  select_n_per_t_ds: [null, null, null]
-  val_datasets: [i4ds/sds-stt-spc-validation]
-  select_n_per_v_ds: [null, null, null]
+  train_datasets: [i4ds/sds-stt-spc-train-fold_0, i4ds/srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
+  select_n_per_t_ds: [null, null, 30000]
+  val_datasets: [i4ds/sds-stt-spc-validation, i4ds/srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
+  select_n_per_v_ds: [100, 100, 100]
   train_split_name: "train"
   valid_split_name: "validation"
   no_timestamp_training: False
   max_prompt_length: 223
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
-  batch_size: 16
+  batch_size: 32
   batch_size_eval: 16
 lr_scheduler:
   type: linear
@@ -24,15 +29,15 @@ optimizer:
   params:
     lr: 2.0e-4
     weight_decay: 0.1
-    betas: (0.9, 0.98)
+    betas: [0.9, 0.98]
     eps: 1.0e-9
     amsgrad: False
 training:
-  accum_grad_steps: 16
-  train_only_decoder: False
+  accum_grad_steps: 8
+  train_only_decoder: True
   max_grad_norm: 1.0
-  epochs: 8
-  eval_steps: 50
+  epochs: 3
+  eval_steps: 25
   eval_warmup: 0
   eval_steps_early: 50
   save_all_checkpoints: False
