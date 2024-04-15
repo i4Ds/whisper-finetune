@@ -181,8 +181,8 @@ def main(config):
 
         # Check if we have a lora training run or not.
     if config["model"]["lora"]:
-        from minlora import LoRAParametrization, add_lora, get_lora_params
-
+        from minlora import LoRAParametrization, add_lora
+        
         from whisper_finetune.model.lora import (
             disable_all_but_parametrized_grads,
         )
