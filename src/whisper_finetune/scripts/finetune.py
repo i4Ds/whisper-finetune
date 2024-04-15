@@ -198,7 +198,9 @@ def main(config):
         print_trainable_parameters(whisper_model)
         if config['training']['train_only_decoder']:
             add_lora(whisper_model.decoder, lora_config=lora_config)
-        else:
+        if config['training']['train_only_encoder']:
+            add_lora(whisper_model.encoder, lora_config=lora_config)
+        if not config['training']['train_only_encoder'] and not config['training']['train_only_decoder']:
             add_lora(whisper_model, lora_config=lora_config)
         disable_all_but_parametrized_grads(whisper_model)
         print("---LORA---")
@@ -206,6 +208,8 @@ def main(config):
     
     if config['training']['train_only_decoder']:
         disable_all_grads(whisper_model.encoder)
+    if config['training']['train_only_encoder']:
+        disable_all_grads(whisper_model.decoder)
 
     whisper_model.to("cuda")
 
