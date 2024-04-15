@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the datasets to download
-DATASET_NAMES=("i4ds/srg-full-train-val")
+DATASET_NAMES=("i4ds/real-srg-full-train-val")
 
 # Create a virtual environment in the current directory
 python3 -m venv .hu_ds_download

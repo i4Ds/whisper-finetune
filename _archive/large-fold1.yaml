@@ -30,6 +30,7 @@ optimizer:
 training:
   accum_grad_steps: 16
   train_only_decoder: False
+  train_only_encoder: False
   max_grad_norm: 1.0
   epochs: 1
   eval_steps: 50
