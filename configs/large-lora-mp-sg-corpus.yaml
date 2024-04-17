@@ -1,0 +1,58 @@
+model:
+  init_name: large-v2
+  bfloat16: False # If this is set, mixed_precision_training will use bfloat16
+  lora: True
+  quantize_model: False # Experimental.
+  lora_config:
+    rank: 32
+    lora_alpha: 64
+    lora_dropout_p: 0.05
+dataset:
+  train_datasets: [i4ds/sds-stt-spc-train-fold_0, i4ds/srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
+  select_n_per_t_ds: [null, null, 30000]
+  val_datasets: [i4ds/sds-stt-spc-validation, i4ds/srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
+  select_n_per_v_ds: [100, 100, 100]
+  train_split_name: "train"
+  valid_split_name: "validation"
+  no_timestamp_training: False
+  max_prompt_length: 223
+  prompt_use_rate: 0.5
+  no_timestamp_rate: 0.5
+  batch_size: 24
+  batch_size_eval: 16
+lr_scheduler:
+  type: linear
+  warmup_steps: 128
+optimizer:
+  type: adamw
+  8bit: True
+  params:
+    lr: 2.0e-4
+    weight_decay: 0.1
+    betas: [0.9, 0.98]
+    eps: 1.0e-9
+    amsgrad: False
+training:
+  accum_grad_steps: 10
+  train_only_decoder: False
+  train_only_encoder: False
+  max_grad_norm: 1.0
+  epochs: 3
+  eval_steps: 25
+  eval_warmup: 0
+  eval_steps_early: 50
+  save_all_checkpoints: False
+  mixed_precision_training: True
+  mp_dtype: fp16
+  gradient_checkpointing_encoder: True
+  gradient_checkpointing_encoder_last_only: False
+  gradient_checkpointing_decoder: True
+augmentation:
+  spec_augment:
+    apply: True
+    time_mask_param: 100
+    p: 1.0
+    freq_mask_param: 27
+    time_warp_w: 80
+seed: 123
+save_dir: output

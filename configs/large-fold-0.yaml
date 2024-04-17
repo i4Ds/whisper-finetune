@@ -9,9 +9,9 @@ model:
     lora_dropout_p: 0.05
 dataset:
   train_datasets: [i4ds/sds-stt-spc-train-fold_0]
-  select_n_per_t_ds: [8]
+  select_n_per_t_ds: [null]
   val_datasets: [i4ds/sds-stt-spc-validation]
-  select_n_per_v_ds: [100]
+  select_n_per_v_ds: [1000]
   train_split_name: "train"
   valid_split_name: "validation"
   no_timestamp_training: False
@@ -55,7 +55,7 @@ augmentation:
     freq_mask_param: 27
     time_warp_w: 80
   audio_augment:
-    apply: True
+    apply: False
     lpf: # Low pass filter
       sample_rate: 16000
       min_cutoff_freq: 1500
