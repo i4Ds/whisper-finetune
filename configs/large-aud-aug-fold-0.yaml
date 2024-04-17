@@ -58,14 +58,14 @@ augmentation:
     apply: True
     lpf: # Low pass filter
       sample_rate: 16000
-      min_cutoff_freq: 1500
-      max_cutoff_freq: 1907
+      min_cutoff_freq: 1907
+      max_cutoff_freq: 7500
     hpf: # High pass filter
       sample_rate: 16000
-      min_cutoff_freq: 211
-      max_cutoff_freq: 400
+      min_cutoff_freq: 20
+      max_cutoff_freq: 212
     acn:  # Colored noise
       sample_rate: 16000
-      min_snr_in_db: 10
+      min_snr_in_db: 25
 seed: 123
 save_dir: output
