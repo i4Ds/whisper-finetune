@@ -9,7 +9,7 @@ model:
     lora_dropout_p: 0.05
 dataset:
   train_datasets: [i4ds/sds-stt-spc-train-fold_0]
-  select_n_per_t_ds: [100]
+  select_n_per_t_ds: [8]
   val_datasets: [i4ds/sds-stt-spc-validation]
   select_n_per_v_ds: [100]
   train_split_name: "train"
@@ -18,7 +18,7 @@ dataset:
   max_prompt_length: 223
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
-  batch_size: 8
+  batch_size: 1
   batch_size_eval: 16
 lr_scheduler:
   type: linear
@@ -33,7 +33,7 @@ optimizer:
     eps: 1.0e-9
     amsgrad: False
 training:
-  accum_grad_steps: 8
+  accum_grad_steps: 1
   train_only_decoder: False
   train_only_encoder: False
   max_grad_norm: 1.0
@@ -57,12 +57,15 @@ augmentation:
   audio_augment:
     apply: True
     lpf: # Low pass filter
+      sample_rate: 16000
       min_cutoff_freq: 1500
       max_cutoff_freq: 1907
     hpf: # High pass filter
+      sample_rate: 16000
       min_cutoff_freq: 211
       max_cutoff_freq: 400
     acn:  # Colored noise
+      sample_rate: 16000
       min_snr_in_db: 10
 seed: 123
 save_dir: output
