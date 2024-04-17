@@ -14,6 +14,8 @@ from whisper.tokenizer import Tokenizer
 
 from whisper_finetune.data.utils import TimeWarpAugmenter
 
+from torch_audiomentations import LowPassFilter, HighPassFilter, AddColoredNoise
+
 
 @dataclass
 class Record:
@@ -40,10 +42,9 @@ class AudioDataset(Dataset):
         prompt_use_rate: float = 0.5,
         no_timestamps_rate: float = 0.5,
         spec_augment: bool = False,
-        time_mask_param: int = 100,
-        freq_mask_param: int = 27,
-        time_warper_w: int = 80,
-        p: float = 1.0,
+        spec_augment_params: Optional[dict] = None,
+        audio_aug: bool = False,
+        audio_augment_params: Optional[dict] = None,
     ) -> None:
         self.hu_dataset = hu_dataset
         self.tokenizer = tokenizer
@@ -54,11 +55,16 @@ class AudioDataset(Dataset):
         self.prompt_use_rate = prompt_use_rate
         self.no_timestamps_rate = no_timestamps_rate
         self.spec_augment = spec_augment
+        self.audio_aug = audio_aug
 
         if spec_augment:
-            self.time_masking = T.TimeMasking(time_mask_param=time_mask_param, p=p)
-            self.freq_masking = T.FrequencyMasking(freq_mask_param=freq_mask_param)
-            self.time_warping = TimeWarpAugmenter(W=time_warper_w)
+            self.time_masking = T.TimeMasking(time_mask_param=spec_augment_params["time_mask_param"])
+            self.freq_masking = T.FrequencyMasking(freq_mask_param=spec_augment_params["freq_mask_param"])
+            self.time_warping = TimeWarpAugmenter(W=spec_augment_params["time_warp_w"])
+        if self.audio_aug:
+            self.acn = AddColoredNoise(**audio_augment_params["acn"])
+            self.lpf = LowPassFilter(**audio_augment_params["lpf"])
+            self.hpf = HighPassFilter(**audio_augment_params["hpf"])
 
         self.num_frames_per_second = N_FRAMES / CHUNK_LENGTH
         # timestamps tokens are from <|0.00|> to <|30.00|> with a step of 0.02
@@ -156,6 +162,12 @@ class AudioDataset(Dataset):
     def _calculate_mel(
         self, audio_array: ndarray, next_partial_segment_start: Optional[float], no_timestamps: bool
     ) -> torch.Tensor:
+        if self.audio_aug:
+            audio_array = torch.tensor(audio_array).unsqueeze(0).unsqueeze(0)
+            audio_array = self.acn(audio_array)
+            audio_array = self.lpf(audio_array)
+            audio_array = self.hpf(audio_array)
+            audio_array = audio_array.squeeze(0).squeeze(0)
         mel = log_mel_spectrogram(audio_array, n_mels=self.n_mels, device=self.device)
         if no_timestamps and next_partial_segment_start is not None:
             mel = mel[:, : int(next_partial_segment_start * self.num_frames_per_second)]
@@ -235,10 +247,9 @@ def get_dataloader(
     shuffle: bool = True,
     num_workers: int = 0,
     spec_augment: bool = False,
-    time_mask_param: int = 100,
-    freq_mask_param: int = 27,
-    time_warper_w: int = 80,
-    p: float = 1.0,
+    spec_augment_params: Optional[dict] = None,
+    audio_aug: bool = False,
+    audio_augment_params: Optional[dict] = None,
 ) -> DataLoader:
     print(f"Found {len(hu_dataset)} records in the dataset.")
     dataset = AudioDataset(
@@ -251,10 +262,9 @@ def get_dataloader(
         prompt_use_rate=prompt_use_rate,
         no_timestamps_rate=no_timestamps_rate,
         spec_augment=spec_augment,
-        time_mask_param=time_mask_param,
-        freq_mask_param=freq_mask_param,
-        time_warper_w=time_warper_w,
-        p=p,
+        spec_augment_params=spec_augment_params,
+        audio_aug=audio_aug,
+        audio_augment_params=audio_augment_params,
     )
     return DataLoader(
         dataset,

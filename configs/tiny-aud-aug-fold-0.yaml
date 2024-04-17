@@ -1,7 +1,7 @@
 model:
   init_name: tiny
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
-  lora: True
+  lora: False
   quantize_model: False # Experimental.
   lora_config:
     rank: 32
@@ -37,13 +37,13 @@ training:
   train_only_decoder: False
   train_only_encoder: False
   max_grad_norm: 1.0
-  epochs: 1
+  epochs: 3
   eval_steps: 25
   eval_warmup: 0
   eval_steps_early: 50
   save_all_checkpoints: False
   mixed_precision_training: True
-  mp_dtype: bf16
+  mp_dtype: fp16
   gradient_checkpointing_encoder: True
   gradient_checkpointing_encoder_last_only: False # Somehow, does not save a lot of memory (~1%).
   gradient_checkpointing_decoder: True
@@ -54,5 +54,15 @@ augmentation:
     p: 1.0
     freq_mask_param: 27
     time_warp_w: 80
+  audio_augment:
+    apply: True
+    lpf: # Low pass filter
+      min_cutoff_freq: 1500
+      max_cutoff_freq: 1907
+    hpf: # High pass filter
+      min_cutoff_freq: 211
+      max_cutoff_freq: 400
+    acn:  # Colored noise
+      min_snr_in_db: 10
 seed: 123
 save_dir: output

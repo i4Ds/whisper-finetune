@@ -54,5 +54,15 @@ augmentation:
     p: 1.0
     freq_mask_param: 27
     time_warp_w: 80
+  audio_augment:
+      apply: True
+      lpf: # Low pass filter
+        min_cutoff_freq: 1500
+        max_cutoff_freq: 1907
+      hpf: # High pass filter
+        min_cutoff_freq: 211
+        max_cutoff_freq: 400
+      acn:  # Colored noise
+        min_snr_in_db: 10
 seed: 123
 save_dir: output
