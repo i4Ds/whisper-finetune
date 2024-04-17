@@ -35,7 +35,7 @@ from whisper_finetune.utils import (
     print_trainable_parameters,
     read_config,
     set_seed,
-    disable_all_grads
+    disable_all_grads,
 )
 
 ENABLE_MEMORY_PROFILING = False
@@ -114,9 +114,9 @@ def main(config):
         # Get the current node name
         node_name = os.environ["SLURMD_NODENAME"]
         print(f"Current Node: {node_name}")
-        
+
         # Fetch general stats about the node using the scontrol command
-        stats = subprocess.check_output(["scontrol", "show", "node", node_name]).decode('utf-8')
+        stats = subprocess.check_output(["scontrol", "show", "node", node_name]).decode("utf-8")
         print("General Stats:")
         print(stats)
 
@@ -182,7 +182,7 @@ def main(config):
         # Check if we have a lora training run or not.
     if config["model"]["lora"]:
         from minlora import LoRAParametrization, add_lora
-        
+
         from whisper_finetune.model.lora import (
             disable_all_but_parametrized_grads,
         )
@@ -196,19 +196,19 @@ def main(config):
         }
 
         print_trainable_parameters(whisper_model)
-        if config['training']['train_only_decoder']:
+        if config["training"]["train_only_decoder"]:
             add_lora(whisper_model.decoder, lora_config=lora_config)
-        if config['training']['train_only_encoder']:
+        if config["training"]["train_only_encoder"]:
             add_lora(whisper_model.encoder, lora_config=lora_config)
-        if not config['training']['train_only_encoder'] and not config['training']['train_only_decoder']:
+        if not config["training"]["train_only_encoder"] and not config["training"]["train_only_decoder"]:
             add_lora(whisper_model, lora_config=lora_config)
         disable_all_but_parametrized_grads(whisper_model)
         print("---LORA---")
         print_trainable_parameters(whisper_model)
-    
-    if config['training']['train_only_decoder']:
+
+    if config["training"]["train_only_decoder"]:
         disable_all_grads(whisper_model.encoder)
-    if config['training']['train_only_encoder']:
+    if config["training"]["train_only_encoder"]:
         disable_all_grads(whisper_model.decoder)
 
     whisper_model.to("cuda")
@@ -242,10 +242,9 @@ def main(config):
         no_timestamps_rate=config["dataset"]["no_timestamp_rate"],
         num_workers=min(os.cpu_count(), 8),
         spec_augment=config["augmentation"]["spec_augment"]["apply"],
-        time_mask_param=config["augmentation"]["spec_augment"]["time_mask_param"],
-        freq_mask_param=config["augmentation"]["spec_augment"]["freq_mask_param"],
-        time_warper_w=config["augmentation"]["spec_augment"]["time_warp_w"],
-        p=config["augmentation"]["spec_augment"]["p"],
+        spec_augment_params=config["augmentation"]["spec_augment"],
+        audio_aug=config["augmentation"]["audio_augment"]["apply"],
+        audio_augment_params=config["augmentation"]["audio_augment"],
     )
     val_loader = get_dataloader(
         hu_dataset=val_dataset,
@@ -257,6 +256,7 @@ def main(config):
         no_timestamps_rate=0,
         num_workers=min(os.cpu_count(), 8),
         spec_augment=False,
+        audio_aug=False,
     )
 
     # Load optimizer
