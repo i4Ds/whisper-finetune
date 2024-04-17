@@ -1,5 +1,5 @@
 openai-whisper==20231117
-bitsandbytes==0.42.0
+bitsandbytes==0.43.1
 datasets==2.17.0
 torchaudio==2.1.2
 librosa==0.10.1
@@ -10,4 +10,4 @@ wandb==0.16.2
 evaluate==0.4.1
 jiwer==3.0.3
 torch-audiomentations==0.11.1
-minlora==0.1.0 @ git+https://github.com/cccntu/minLoRA.git@main
+minlora @ git+https://github.com/cccntu/minLoRA.git@main
