@@ -57,15 +57,19 @@ augmentation:
   audio_augment:
     apply: True
     lpf: # Low pass filter
+      p: 0.2
       sample_rate: 16000
-      min_cutoff_freq: 1907
+      min_cutoff_freq: 3340
       max_cutoff_freq: 7500
     hpf: # High pass filter
+      p: 0.2
       sample_rate: 16000
       min_cutoff_freq: 20
-      max_cutoff_freq: 212
+      max_cutoff_freq: 128
     acn:  # Colored noise
+      p: 0.2
       sample_rate: 16000
       min_snr_in_db: 25
+      max_snr_in_db: 99
 seed: 123
 save_dir: output
