@@ -167,7 +167,7 @@ class AudioDataset(Dataset):
             audio_array = self.acn(audio_array)
             audio_array = self.lpf(audio_array)
             audio_array = self.hpf(audio_array)
-            audio_array = audio_array.squeeze(0).squeeze(0)
+            audio_array = audio_array.squeeze(0).squeeze(0).numpy()
         mel = log_mel_spectrogram(audio_array, n_mels=self.n_mels, device=self.device)
         if no_timestamps and next_partial_segment_start is not None:
             mel = mel[:, : int(next_partial_segment_start * self.num_frames_per_second)]
