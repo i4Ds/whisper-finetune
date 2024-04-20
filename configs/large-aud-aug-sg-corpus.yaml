@@ -8,9 +8,9 @@ model:
     lora_alpha: 64
     lora_dropout_p: 0.05
 dataset:
-  train_datasets: [i4ds/sds-stt-spc-train-fold_0]
+  train_datasets: [i4ds/sds-stt-spc-train-val-v2]
   select_n_per_t_ds: [null]
-  val_datasets: [i4ds/sds-stt-spc-validation]
+  val_datasets: [i4ds/sds-stt-spc-train-val-v2]
   select_n_per_v_ds: [1000]
   train_split_name: "train"
   valid_split_name: "validation"
@@ -22,7 +22,7 @@ dataset:
   batch_size_eval: 16
 lr_scheduler:
   type: linear
-  warmup_steps: 2
+  warmup_steps: 128
 optimizer:
   type: adamw
   8bit: True
@@ -30,10 +30,10 @@ optimizer:
     lr: 2.0e-4
     weight_decay: 0.1
     betas: [0.9, 0.98]
-    eps: 1.0e-9
+    eps: 1.0e-6
     amsgrad: False
 training:
-  accum_grad_steps: 16
+  accum_grad_steps: 1
   train_only_decoder: False
   train_only_encoder: False
   max_grad_norm: 1.0
