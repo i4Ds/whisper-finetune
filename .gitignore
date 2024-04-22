@@ -174,3 +174,4 @@ cache/huggingface/*
 ct2_output/*
 downloaded_models/*
 *.mp3
+*.srt
