@@ -33,7 +33,7 @@ optimizer:
     eps: 1.0e-6
     amsgrad: False
 training:
-  accum_grad_steps: 1
+  accum_grad_steps: 16
   train_only_decoder: False
   train_only_encoder: False
   max_grad_norm: 1.0
