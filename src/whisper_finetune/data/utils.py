@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 from datasets import concatenate_datasets, load_dataset
-
-
+from librosa.feature.inverse import mel_to_audio
+from whisper.audio import N_FFT, HOP_LENGTH
+from typing import Union
 class TimeWarpAugmenter:
     def __init__(self, W=50):
         """
@@ -17,7 +18,15 @@ class TimeWarpAugmenter:
         param:
         specs: spectrogram of size (batch, channel, freq_bin, length)
         """
-        return self.time_warp(specs)
+        if not torch.is_tensor(specs):
+            specs = torch.from_numpy(specs)
+        if specs.dim() < 2 or specs.dim() > 3:
+            raise ValueError("You sure it's a Spectrogram?")
+        if specs.dim() == 2:
+            # Add dummy batch. 
+            specs = torch.unsqueeze(specs, dim=0)
+        warped = self.time_warp(specs, self.W)
+        return warped.squeeze(0)
 
     @staticmethod
     def h_poly(t):
@@ -126,3 +135,35 @@ def process_dataset(dataset_names, select_n_per_ds, split_name):
 def add_fixed_value(batch, col_name, fixed_value):
     batch[col_name] = [fixed_value] * len(batch["text"])
     return batch
+
+
+def inverse_mel_to_audio(mel_spec: Union[torch.Tensor, np.array], sr: int = 16000, n_fft: int = N_FFT, hop_length: int = HOP_LENGTH, power: float = 10) -> np.ndarray:
+    """
+    Inverse a Mel spectrogram back to an audio waveform using the Griffin-Lim algorithm. 
+    The parameters are working for the data generation for whisper-large v2.
+
+    Parameters:
+    - mel_spec : torch.Tensor
+        The Mel spectrogram as a PyTorch tensor.
+    - sr : int, optional
+        The sample rate of the audio (default is 16000 Hz).
+    - n_fft : int, optional
+        The number of FFT components (default is 400).
+    - hop_length : int, optional
+        The number of samples between successive frames (default is 160).
+    - power : float, optional
+        The power to raise the Mel spectrogram before inversion (default is 10).
+
+    Returns:
+    - audio : np.ndarray
+        The reconstructed audio signal as a NumPy array.
+    """
+    # Convert the Mel spectrogram to a NumPy array and apply power
+    if torch.is_tensor(mel_spec):
+        mel_spec_np = mel_spec.numpy()
+    mel_spec_power = np.power(mel_spec_np, power)
+
+    # Invert the Mel spectrogram to audio using librosa
+    audio = mel_to_audio(mel_spec_power, sr=sr, n_fft=n_fft, hop_length=hop_length)
+
+    return audio

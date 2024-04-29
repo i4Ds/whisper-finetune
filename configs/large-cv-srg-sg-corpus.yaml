@@ -53,7 +53,7 @@ augmentation:
     time_mask_param: 100
     p: 1.0
     freq_mask_param: 27
-    time_warp_w: 80
+    time_warp_w: 500
   audio_augment:
     apply: False
     lpf: # Low pass filter
