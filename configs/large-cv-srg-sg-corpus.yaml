@@ -8,9 +8,9 @@ model:
     lora_alpha: 64
     lora_dropout_p: 0.05
 dataset:
-  train_datasets: [i4ds/sds-stt-spc-train-fold_0, i4ds/real-srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
+  train_datasets: [i4ds/sds-stt-spc-train-val-v2, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_t_ds: [null, null, 30000]
-  val_datasets: [i4ds/sds-stt-spc-validation, i4ds/real-srg-full-train-val, i4ds/mozilla-cv-13-long-text-de]
+  val_datasets: [i4ds/sds-stt-spc-train-val-v2, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_v_ds: [100, 100, 100]
   train_split_name: "train"
   valid_split_name: "validation"
