@@ -174,11 +174,9 @@ class AudioDataset(Dataset):
         mel = pad_or_trim(mel, N_FRAMES)
 
         if self.spec_augment:
-            mel = torch.unsqueeze(mel, dim=0)  # Add fake batch dim.
             mel = self.time_warping(mel)
             mel = self.time_masking(mel)
             mel = self.freq_masking(mel)
-            mel = torch.squeeze(mel, dim=0)
 
         return mel
 
