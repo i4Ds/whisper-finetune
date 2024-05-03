@@ -218,7 +218,7 @@ class AudioDataset(Dataset):
         audio_arr = record["audio"]["array"]
         del record
 
-        # Pad in audio domain, not spectogram domain.
+        # Pad in audio domain, not spectrogram domain.
         # https://github.com/openai/whisper/discussions/838#discussioncomment-5233715
         audio_arr = np.pad(audio_arr, (0, N_SAMPLES - audio_arr.shape[0]), 'constant')
 

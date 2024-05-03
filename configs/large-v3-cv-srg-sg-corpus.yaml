@@ -1,5 +1,5 @@
 model:
-  init_name: large-v2
+  init_name: large-v3
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
   lora: False
   quantize_model: False # Experimental.
