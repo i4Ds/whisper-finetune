@@ -1,5 +1,6 @@
 from torch.nn.utils.parametrize import is_parametrized
 
+
 def disable_all_but_parametrized_grads(model):
     for _, module in model.named_modules():
         # If the module itself is not parametrized

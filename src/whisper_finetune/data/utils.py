@@ -2,8 +2,13 @@ import numpy as np
 import torch
 from datasets import concatenate_datasets, load_dataset
 from librosa.feature.inverse import mel_to_audio
-from whisper.audio import N_FFT, HOP_LENGTH
+from whisper.audio import N_FFT, HOP_LENGTH, N_SAMPLES
 from typing import Union
+import torch
+import torch.nn.functional as F
+import numpy as np
+
+
 class TimeWarpAugmenter:
     def __init__(self, W=50):
         """
@@ -23,7 +28,7 @@ class TimeWarpAugmenter:
         if specs.dim() < 2 or specs.dim() > 3:
             raise ValueError("You sure it's a Spectrogram?")
         if specs.dim() == 2:
-            # Add dummy batch. 
+            # Add dummy batch.
             specs = torch.unsqueeze(specs, dim=0)
         warped = self.time_warp(specs, self.W)
         return warped.squeeze(0)
@@ -137,9 +142,42 @@ def add_fixed_value(batch, col_name, fixed_value):
     return batch
 
 
-def inverse_mel_to_audio(mel_spec: Union[torch.Tensor, np.array], sr: int = 16000, n_fft: int = N_FFT, hop_length: int = HOP_LENGTH, power: float = 10) -> np.ndarray:
+def pad_or_trim(array, length: int = N_SAMPLES, *, axis: int = -1):
     """
-    Inverse a Mel spectrogram back to an audio waveform using the Griffin-Lim algorithm. 
+    Pad or trim the audio array to `length`, using the minimum value in the array for padding.
+    This is particularly useful for spectrograms where padding with the minimum value (silence) is desired.
+    As mentioned by Openai, we should zeropad in Audio, which is the minimum value of the melspectrogram 
+    in the melspectrogram-dimension.
+    """
+    if torch.is_tensor(array):
+        if array.shape[axis] > length:
+            array = array.index_select(dim=axis, index=torch.arange(length, device=array.device))
+        if array.shape[axis] < length:
+            pad_widths = [(0, 0)] * array.ndim
+            pad_widths[axis] = (0, length - array.shape[axis])
+            min_value = torch.min(array).item()
+            array = F.pad(array, [pad for sizes in pad_widths[::-1] for pad in sizes], value=min_value)
+    else:
+        if array.shape[axis] > length:
+            array = array.take(indices=range(length), axis=axis)
+        if array.shape[axis] < length:
+            pad_widths = [(0, 0)] * array.ndim
+            pad_widths[axis] = (0, length - array.shape[axis])
+            min_value = np.min(array)
+            array = np.pad(array, pad_widths, constant_values=min_value)
+
+    return array
+
+
+def inverse_mel_to_audio(
+    mel_spec: Union[torch.Tensor, np.array],
+    sr: int = 16000,
+    n_fft: int = N_FFT,
+    hop_length: int = HOP_LENGTH,
+    power: float = 10,
+) -> np.ndarray:
+    """
+    Inverse a Mel spectrogram back to an audio waveform using the Griffin-Lim algorithm.
     The parameters are working for the data generation for whisper-large v2.
 
     Parameters:
