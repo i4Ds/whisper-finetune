@@ -9,10 +9,10 @@ from datasets import Dataset as HU_Dataset
 from numpy import ndarray
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
-from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram, pad_or_trim
+from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
 
-from whisper_finetune.data.utils import TimeWarpAugmenter
+from whisper_finetune.data.utils import TimeWarpAugmenter, pad_or_trim
 
 from torch_audiomentations import LowPassFilter, HighPassFilter, AddColoredNoise
 
@@ -56,7 +56,7 @@ class AudioDataset(Dataset):
         self.no_timestamps_rate = no_timestamps_rate
         self.spec_augment = spec_augment
         self.audio_aug = audio_aug
-    
+
         if spec_augment:
             self.time_masking = T.TimeMasking(time_mask_param=spec_augment_params["time_mask_param"])
             self.freq_masking = T.FrequencyMasking(freq_mask_param=spec_augment_params["freq_mask_param"])
@@ -142,6 +142,8 @@ class AudioDataset(Dataset):
         return tokens
 
     def _get_partial_segment_start(self, tokens: List[int]) -> Optional[float]:
+        """If at the end there are two timestamps, use the last one to cut the audio.
+        And then zero pad it in the audio-dimension, so that the model learns about silence."""
         if (
             len(tokens) >= 2
             and tokens[-2] >= self.tokenizer.timestamp_begin
@@ -172,7 +174,6 @@ class AudioDataset(Dataset):
         if no_timestamps and next_partial_segment_start is not None:
             mel = mel[:, : int(next_partial_segment_start * self.num_frames_per_second)]
         if mel.shape[1] != N_FRAMES:
-            print("Warning! Mel does not have the correct dimension. Is this expected?")
             mel = pad_or_trim(mel, N_FRAMES)
 
         if self.spec_augment:
@@ -220,7 +221,7 @@ class AudioDataset(Dataset):
 
         # Pad in audio domain, not spectrogram domain.
         # https://github.com/openai/whisper/discussions/838#discussioncomment-5233715
-        audio_arr = np.pad(audio_arr, (0, N_SAMPLES - audio_arr.shape[0]), 'constant')
+        audio_arr = np.pad(audio_arr, (0, N_SAMPLES - audio_arr.shape[0]), "constant")
 
         mel = self._calculate_mel(audio_arr, next_partial_segment_start, no_timestamps)
 
