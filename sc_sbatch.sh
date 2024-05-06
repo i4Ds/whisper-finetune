@@ -14,4 +14,4 @@ conda activate whisper_finetune
 # Get env variables
 export $(cat .env | xargs)
 
-python src/whisper_finetune/scripts/finetune.py --config configs/large-cv-srg-sg-corpus.yaml
+python src/whisper_finetune/scripts/finetune.py --config configs/large-v3-cv-srg-sg-corpus.yaml
