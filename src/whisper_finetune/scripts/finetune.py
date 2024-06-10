@@ -16,9 +16,8 @@ import wandb
 from whisper_finetune.data.data_loader import get_dataloader
 from whisper_finetune.data.utils import process_dataset
 from whisper_finetune.model.model_utils import (
-    CheckpointedAudioEncoder,
-    CheckpointedAudioEncoderLastBlock,
-    CheckpointedTextDecoder,
+    CheckpointedStochasticAudioEncoder,
+    CheckpointedStochasticTextDecoder,
     evaluate,
     infinite_iter,
     load_model_and_set_heads,
@@ -95,6 +94,7 @@ def main(config):
         torch.cuda.memory._record_memory_history()
 
     torch.backends.cudnn.benchmark = False
+    torch.set_float32_matmul_precision("high")
 
     config["save_dir"] = get_unique_base_path() + "_" + config["save_dir"]
 
@@ -143,16 +143,9 @@ def main(config):
     if config["training"]["gradient_checkpointing_encoder"]:
         del whisper_model.encoder
         if config["training"]["gradient_checkpointing_encoder_last_only"]:
-            whisper_model.encoder = CheckpointedAudioEncoderLastBlock(
-                whisper_model.dims.n_mels,
-                whisper_model.dims.n_audio_ctx,
-                whisper_model.dims.n_audio_state,
-                whisper_model.dims.n_audio_head,
-                whisper_model.dims.n_audio_layer,
-                config['training']['stochastic_depth']
-            )
+            raise NotImplementedError()
         else:
-            whisper_model.encoder = CheckpointedAudioEncoder(
+            whisper_model.encoder = CheckpointedStochasticAudioEncoder(
                 whisper_model.dims.n_mels,
                 whisper_model.dims.n_audio_ctx,
                 whisper_model.dims.n_audio_state,
@@ -162,7 +155,7 @@ def main(config):
             )
     if config["training"]["gradient_checkpointing_decoder"]:
         del whisper_model.decoder
-        whisper_model.decoder = CheckpointedTextDecoder(
+        whisper_model.decoder = CheckpointedStochasticTextDecoder(
             whisper_model.dims.n_vocab,
             whisper_model.dims.n_text_ctx,
             whisper_model.dims.n_text_state,
