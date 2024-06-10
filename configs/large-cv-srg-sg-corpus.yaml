@@ -30,13 +30,14 @@ optimizer:
     lr: 2.0e-4
     weight_decay: 0.1
     betas: [0.9, 0.98]
-    eps: 1.0e-9
+    eps: 1.0e-6
     amsgrad: False
 training:
   accum_grad_steps: 16
   train_only_decoder: False
   train_only_encoder: False
   max_grad_norm: 1.0
+  stochastic_depth: 0.0
   epochs: 2
   eval_steps: 50
   eval_warmup: 200
