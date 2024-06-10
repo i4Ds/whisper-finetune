@@ -157,6 +157,7 @@ def main(config):
                 whisper_model.dims.n_audio_state,
                 whisper_model.dims.n_audio_head,
                 whisper_model.dims.n_audio_layer,
+                config['training']['stochastic_depth']
             )
     if config["training"]["gradient_checkpointing_decoder"]:
         del whisper_model.decoder
@@ -166,6 +167,7 @@ def main(config):
             whisper_model.dims.n_text_state,
             whisper_model.dims.n_text_head,
             whisper_model.dims.n_text_layer,
+            config['training']['stochastic_depth']
         )
 
     # We need to reload weights for deletected Decoder and Encoder.

@@ -37,6 +37,7 @@ training:
   train_only_decoder: True
   train_only_encoder: False
   max_grad_norm: 1.0
+  stochastic_depth: 0.0
   epochs: 3
   eval_steps: 25
   eval_warmup: 0

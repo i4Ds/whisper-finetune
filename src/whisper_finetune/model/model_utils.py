@@ -6,7 +6,7 @@ import os
 import random
 from dataclasses import asdict
 from functools import partial
-from typing import Iterator, Optional, Union
+from typing import Iterator, Optional, Union, Callable
 
 import numpy as np
 import torch
@@ -210,6 +210,15 @@ def infinite_iter(data_loader: DataLoader) -> Iterator:
 
 
 class CheckpointedAudioEncoder(AudioEncoder):
+    def __init__(self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, stochastic_depth_prob: float):
+        super().__init__()
+        self.stochastic_depth_prob = stochastic_depth_prob
+
+    def stochastic_depth(self, x: Tensor, layer: Callable[[Tensor], Tensor], p: float) -> Tensor:
+        if self.training and random.uniform(0, 1) < p:
+            return x  # Skip the layer
+        return layer(x)  # Apply the layer
+
     def forward(self, x: Tensor):
         """
         x : torch.Tensor, shape = (batch_size, n_mels, n_ctx)
@@ -223,38 +232,26 @@ class CheckpointedAudioEncoder(AudioEncoder):
         x = (x + self.positional_embedding).to(x.dtype)
 
         for block in self.blocks:
-            x = checkpoint(block, x, use_reentrant=False)
+            block_p = partial(block)
+            x = self.stochastic_depth(x, block_p, self.stochastic_depth_prob)
+            x = checkpoint(block_p, x, use_reentrant=False)
 
         x = self.ln_post(x)
         return x
 
 
-class CheckpointedAudioEncoderLastBlock(AudioEncoder):
-    def forward(self, x: Tensor):
-        """
-        x : torch.Tensor, shape = (batch_size, n_mels, n_ctx)
-            the mel spectrogram of the audio
-        """
-        x = F.gelu(self.conv1(x))
-        x = F.gelu(self.conv2(x))
-        x = x.permute(0, 2, 1)
-
-        assert x.shape[1:] == self.positional_embedding.shape, "incorrect audio shape"
-        x = (x + self.positional_embedding).to(x.dtype)
-
-        for block in self.blocks[:-1]:
-            x = block(x)
-
-        x = checkpoint(self.blocks[-1], x, use_reentrant=False)
-
-        x = self.ln_post(x)
-        return x
 
 
 class CheckpointedTextDecoder(TextDecoder):
-    def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int):
+    def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, stochastic_depth_prob: float):
         # Call the initializer of the parent class (TextDecoder)
         super().__init__(n_vocab, n_ctx, n_state, n_head, n_layer)
+        self.stochastic_depth_prob = stochastic_depth_prob
+
+    def stochastic_depth(self, x: Tensor, layer: Callable[[Tensor], Tensor], p: float) -> Tensor:
+        if self.training and random.uniform(0, 1) < p:
+            return x  # Skip the layer
+        return layer(x)  # Apply the layer
 
     def forward(self, x: Tensor, xa: Tensor, kv_cache: Optional[dict] = None):
         """
@@ -269,6 +266,7 @@ class CheckpointedTextDecoder(TextDecoder):
 
         for block in self.blocks:
             block_p = partial(block, xa=xa, mask=self.mask, kv_cache=kv_cache)
+            x = self.stochastic_depth(x, block_p, self.stochastic_depth_prob)
             x = checkpoint(block_p, x, use_reentrant=False)
 
         x = self.ln(x)
@@ -327,3 +325,24 @@ def load_model_and_set_heads(
         model.set_alignment_heads(alignment_heads)
 
     return model.to(device)
+
+class CheckpointedAudioEncoderLastBlock(AudioEncoder):
+    def forward(self, x: Tensor):
+        """
+        x : torch.Tensor, shape = (batch_size, n_mels, n_ctx)
+            the mel spectrogram of the audio
+        """
+        x = F.gelu(self.conv1(x))
+        x = F.gelu(self.conv2(x))
+        x = x.permute(0, 2, 1)
+
+        assert x.shape[1:] == self.positional_embedding.shape, "incorrect audio shape"
+        x = (x + self.positional_embedding).to(x.dtype)
+
+        for block in self.blocks[:-1]:
+            x = block(x)
+
+        x = checkpoint(self.blocks[-1], x, use_reentrant=False)
+
+        x = self.ln_post(x)
+        return x
