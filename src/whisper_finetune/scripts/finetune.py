@@ -149,6 +149,7 @@ def main(config):
                 whisper_model.dims.n_audio_state,
                 whisper_model.dims.n_audio_head,
                 whisper_model.dims.n_audio_layer,
+                config['training']['stochastic_depth']
             )
         else:
             whisper_model.encoder = CheckpointedAudioEncoder(

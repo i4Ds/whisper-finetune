@@ -37,8 +37,8 @@ training:
   train_only_decoder: False
   train_only_encoder: False
   max_grad_norm: 1.0
-  stochastic_depth: 0.1
-  epochs: 2
+  stochastic_depth: 0.0
+  epochs: 3
   eval_steps: 200
   eval_warmup: 200
   eval_steps_early: 200
@@ -46,7 +46,7 @@ training:
   mixed_precision_training: True
   mp_dtype: fp16
   gradient_checkpointing_encoder: True
-  gradient_checkpointing_encoder_last_only: False
+  gradient_checkpointing_encoder_last_only: True
   gradient_checkpointing_decoder: True
 augmentation:
   spec_augment:
