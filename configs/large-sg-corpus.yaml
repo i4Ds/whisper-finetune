@@ -8,9 +8,9 @@ model:
     lora_alpha: 64
     lora_dropout_p: 0.05
 dataset:
-  train_datasets: [i4ds/sds-stt-spc-train-val-v2]
+  train_datasets: [i4ds/sds-stt-spc-train-val-v3]
   select_n_per_t_ds: [null]
-  val_datasets: [i4ds/sds-stt-spc-train-val-v2]
+  val_datasets: [i4ds/sds-stt-spc-train-val-v3]
   select_n_per_v_ds: [1000]
   train_split_name: "train"
   valid_split_name: "validation"
@@ -37,11 +37,11 @@ training:
   train_only_decoder: False
   train_only_encoder: False
   max_grad_norm: 1.0
-  stochastic_depth: 0.0
+  stochastic_depth: 0.1
   epochs: 3
-  eval_steps: 25
-  eval_warmup: 0
-  eval_steps_early: 50
+  eval_steps: 200
+  eval_warmup: 200
+  eval_steps_early: 200
   save_all_checkpoints: False
   mixed_precision_training: True
   mp_dtype: fp16
