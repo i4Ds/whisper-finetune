@@ -39,9 +39,9 @@ training:
   max_grad_norm: 1.0
   stochastic_depth: 0.1
   epochs: 3
-  eval_steps: 200
+  eval_steps: 50
   eval_warmup: 200
-  eval_steps_early: 200
+  eval_steps_early: 50
   save_all_checkpoints: False
   mixed_precision_training: True
   mp_dtype: fp16
@@ -54,7 +54,7 @@ augmentation:
     time_mask_param: 100
     p: 1.0
     freq_mask_param: 27
-    time_warp_w: 80
+    time_warp_w: 160
   audio_augment:
     apply: False
     lpf: # Low pass filter
