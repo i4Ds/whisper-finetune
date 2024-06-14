@@ -10,10 +10,10 @@ model:
 dataset:
   train_datasets: [i4ds/sds-stt-spc-train-val-v3]
   select_n_per_t_ds: [null]
-  val_datasets: [i4ds/schoenleber_1]
-  select_n_per_v_ds: [None]
+  val_datasets: [i4ds/srg-real-v2, i4ds/sds-stt-spc-train-val-v3]
+  select_n_per_v_ds: [1000, 1000]
   train_split_name: "train"
-  valid_split_name: "test"
+  valid_split_name: "validation"
   no_timestamp_training: False
   max_prompt_length: 223
   prompt_use_rate: 0.5
