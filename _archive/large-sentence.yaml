@@ -17,7 +17,7 @@ dataset:
   batch_size_eval: 16
 lr_scheduler:
   type: linear
-  warmup_steps: 128
+  warmup_steps_ratio: 0.001953125 # (2048 / 1048576)
 optimizer:
   type: adamw
   8bit: True
