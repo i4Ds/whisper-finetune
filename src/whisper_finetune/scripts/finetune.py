@@ -67,7 +67,7 @@ def main_loop(
         wandb.log({"Learning rate": scheduler.get_last_lr()[0]})
         wandb.log({"Train loss": train_loss})  # Log training loss
 
-        if (step % config['val_steps']) == 0 or step == t_config["train_steps"] + 1:
+        if (step % t_config['val_steps']) == 0 or step == t_config["train_steps"] + 1:
             eval_loss, eval_wer = evaluate(model, dev_loader, t_config)
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
             wandb.log({"Validation loss": eval_loss, "Validation WER": eval_wer})  # Log validation loss
