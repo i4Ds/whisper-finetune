@@ -45,7 +45,6 @@ def train_step(
     # bfloat16 is not supported by torch.cuda.amp.GradScaler: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
     # Unsure what the solution to this problem ? is
     if mixed_precision_training:
-        print("Detected mixed precision training. Using torch.cuda.amp.GradScaler.")
         scaler = torch.cuda.amp.GradScaler()
     else:
         scaler = None

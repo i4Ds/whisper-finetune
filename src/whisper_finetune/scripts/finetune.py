@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from whisper import Whisper as WhisperModel
 from whisper.tokenizer import get_tokenizer
-
+from pprint import pprint
 import wandb
 from whisper_finetune.data.data_loader import get_dataloader
 from whisper_finetune.data.utils import process_dataset
@@ -262,6 +262,9 @@ def main(config):
 
     # Get Scheduler
     scheduler = get_scheduler(optimizer, config["lr_scheduler"], config["training"]["train_steps"])
+
+    # Print out final config
+    pprint(config)
 
     # Wandb
     wandb.init(config=config)
