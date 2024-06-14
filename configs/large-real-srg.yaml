@@ -10,7 +10,7 @@ model:
 dataset:
   train_datasets: [i4ds/srg-real-v2]
   select_n_per_t_ds: [null]
-  val_datasets: [i4ds/srg-real-v2, i4ds/sds-stt-spc-validation, i4ds/srg-real-v2]
+  val_datasets: [i4ds/srg-real-v2, i4ds/sds-stt-spc-validation]
   select_n_per_v_ds: [500, 500, 500]
   train_split_name: "train"
   valid_split_name: "validation"

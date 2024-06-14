@@ -34,9 +34,7 @@ training:
   max_grad_norm: 1.0
   stochastic_depth: 0.0
   epochs: 3
-  eval_steps: 50
-  eval_warmup: 0
-  eval_steps_early: 50
+  eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
   mixed_precision_training: True
   mp_dtype: fp16

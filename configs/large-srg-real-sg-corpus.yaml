@@ -11,7 +11,7 @@ dataset:
   train_datasets: [i4ds/srg-real-v2, i4ds/sds-stt-spc-train-val-v3]
   select_n_per_t_ds: [null, null]
   val_datasets: [i4ds/srg-real-v2, i4ds/sds-stt-spc-train-val-v3]
-  select_n_per_v_ds: [500, 500]
+  select_n_per_v_ds: [1000, 1000]
   train_split_name: "train"
   valid_split_name: "validation"
   no_timestamp_training: False
@@ -22,7 +22,7 @@ dataset:
   batch_size_eval: 16
 lr_scheduler:
   type: linear
-  warmup_steps: 128
+  warmup_steps: 390 # (2048 / 1048576) * <number of rows>
 optimizer:
   type: adamw
   8bit: True
@@ -37,11 +37,9 @@ training:
   train_only_decoder: False
   train_only_encoder: False
   max_grad_norm: 1.0
-  stochastic_depth: 0.0
+  stochastic_depth: 0.1
   epochs: 3
-  eval_steps: 200
-  eval_warmup: 200
-  eval_steps_early: 200
+  eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
   mixed_precision_training: True
   mp_dtype: fp16
