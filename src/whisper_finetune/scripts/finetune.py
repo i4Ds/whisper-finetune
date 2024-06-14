@@ -220,9 +220,10 @@ def main(config):
         ds_config["val_datasets"], ds_config["select_n_per_v_ds"], ds_config["valid_split_name"]
     )
 
-    # Calculate trainings steps from epochs
+    # Calculate some steps
     config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)
     config['training']['val_steps'] = calculate_val_steps(config)
+    config['lr_scheduler']['warmup_steps'] = int(config['lr_scheduler']['warmup_steps_ratio'] * len(train_dataset))
 
     # Get tokenizer
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
