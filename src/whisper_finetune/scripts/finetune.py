@@ -23,11 +23,13 @@ from whisper_finetune.model.model_utils import (
     load_model_and_set_heads,
     save_model,
     train_step,
+    
 )
 from whisper_finetune.model.optimizer import get_optimizer
 from whisper_finetune.model.scheduler import get_scheduler
 from whisper_finetune.utils import (
     calculate_training_steps,
+    calculate_val_steps,
     get_unique_base_path,
     handle_cuda_memory_operations,
     print_size_of_model,
@@ -65,9 +67,7 @@ def main_loop(
         wandb.log({"Learning rate": scheduler.get_last_lr()[0]})
         wandb.log({"Train loss": train_loss})  # Log training loss
 
-        if ((step <= t_config["eval_warmup"]) and (step % t_config["eval_steps_early"] == 0)) or (
-            (step > t_config["eval_warmup"]) and (step % t_config["eval_steps"] == 0)
-        ):
+        if (step % config['val_steps']) == 0 or step == t_config["train_steps"] + 1:
             eval_loss, eval_wer = evaluate(model, dev_loader, t_config)
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
             wandb.log({"Validation loss": eval_loss, "Validation WER": eval_wer})  # Log validation loss
@@ -222,6 +222,7 @@ def main(config):
 
     # Calculate trainings steps from epochs
     config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)
+    config['training']['val_steps'] = calculate_val_steps(config)
 
     # Get tokenizer
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")

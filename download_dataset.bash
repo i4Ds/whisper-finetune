@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the datasets to download
-DATASET_NAMES=("i4ds/srg-real-v2")
+DATASET_NAMES=("i4ds/schoenleber_1")
 
 # Create a virtual environment in the current directory
 python3 -m venv .hu_ds_download

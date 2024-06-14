@@ -24,6 +24,10 @@ def calculate_training_steps(config: Dict, train_dataset) -> None:
     return training_steps
 
 
+def calculate_val_steps(config: Dict) -> None:
+    val_steps = (config["training"]['val_steps'] / config["training"]["epochs"]) * config['training']['eval_steps']
+    return int(val_steps)
+
 def read_config(yaml_file_path):
     print(f"Reading config {yaml_file_path}")
     with open(yaml_file_path, "r") as file:
