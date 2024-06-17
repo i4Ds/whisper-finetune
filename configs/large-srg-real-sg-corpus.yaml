@@ -18,8 +18,8 @@ dataset:
   max_prompt_length: 223
   prompt_use_rate: 0.5
   no_timestamp_rate: 0.5
-  batch_size: 16
-  batch_size_eval: 16
+  batch_size: 32
+  batch_size_eval: 32
 lr_scheduler:
   type: linear
   warmup_steps_ratio: 0.001953125 # (2048 / 1048576)
@@ -30,15 +30,15 @@ optimizer:
     lr: 2.0e-4
     weight_decay: 0.1
     betas: [0.9, 0.98]
-    eps: 1.0e-6
+    eps: 1.0e-9
     amsgrad: False
 training:
-  accum_grad_steps: 16
+  accum_grad_steps: 8
   train_only_decoder: False
   train_only_encoder: False
   max_grad_norm: 1.0
   stochastic_depth: 0.1
-  epochs: 3
+  epochs: 4
   eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
   mixed_precision_training: True
