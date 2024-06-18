@@ -22,7 +22,7 @@ dataset:
   batch_size_eval: 16
 lr_scheduler:
   type: linear
-  warmup_steps_ratio: 0.001953125 # (2048 / 1048576)
+  warmup_steps: 128 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
 optimizer:
   type: adamw
   8bit: True
@@ -39,9 +39,7 @@ training:
   max_grad_norm: 1.0
   stochastic_depth: 0.1
   epochs: 3
-  eval_steps: 200
-  eval_warmup: 200
-  eval_steps_early: 200
+  eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
   mixed_precision_training: True
   mp_dtype: fp16
