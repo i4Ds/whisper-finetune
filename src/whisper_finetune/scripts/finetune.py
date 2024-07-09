@@ -223,7 +223,7 @@ def main(config):
     # Calculate some steps
     config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)
     config['training']['val_steps'] = calculate_val_steps(config)
-    if ['lr_scheduler']['warmup_steps'] < 1.0:
+    if config['lr_scheduler']['warmup_steps'] < 1.0:
         config['lr_scheduler']['warmup_steps'] = int(config['lr_scheduler']['warmup_steps'] * len(train_dataset))
 
     # Get tokenizer
