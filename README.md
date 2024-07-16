@@ -3,7 +3,12 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![GitHub issues](https://img.shields.io/github/issues/i4ds/whisper-finetune.svg)](https://github.com/i4ds/whisper-finetune/issues)
 
-This repository contains code for fine-tuning the Whisper speech-to-text model. It utilizes Weights & Biases (wandb) for logging metrics and storing models.
+This repository contains code for fine-tuning the Whisper speech-to-text model. It utilizes Weights & Biases (wandb) for logging metrics and storing models. Key features include:
+
+- Stochastic depth implementation for improved model generalization
+- Correct implementation of SpecAugment for robust audio data augmentation
+- Checkpointing functionality to save and resume training progress, crucial for handling long-running experiments and potential interruptions
+- Integration with Weights & Biases (wandb) for comprehensive experiment tracking and model versioning
 
 ## Installation
 
@@ -13,16 +18,15 @@ This repository contains code for fine-tuning the Whisper speech-to-text model. 
    cd whisper-finetune
    ```
 
-2. Create and activate a virtual environment (recommended):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-   ```
+2. Create and activate a virtual environment (strongly recommended). Use Venv or Anaconda or your favorite virtual enviroment creator.
 
 3. Install the package in editable mode:
    ```bash
    pip install -e .
    ```
+
+## Data
+Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed as a [🤗 Datasets](https://huggingface.co/docs/datasets/en/index) to the model.
 
 ## Usage
 
@@ -36,6 +40,10 @@ This repository contains code for fine-tuning the Whisper speech-to-text model. 
 ## Configuration
 
 Modify the YAML files in the `configs/` directory to customize your fine-tuning process. Refer to the existing configuration files for examples of available options.
+
+## Thank you
+
+The starting point of this repository was the excellent repository by [Jumon](https://github.com/jumon) at https://github.com/jumon/whisper-finetuning
 
 ## Contributing
 
