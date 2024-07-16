@@ -35,7 +35,7 @@ class AudioDataset(Dataset):
         self,
         hu_dataset: HU_Dataset,
         tokenizer: Tokenizer,
-        device: Optional[torch.device] = None,  # Does not allow for multiprocessing.
+        device: Optional[torch.device] = None,  # CUDA does not allow for multiprocessing.
         no_timestamps_training: bool = False,
         n_mels: int = 80,
         max_prompt_length: int = 223,  # The maximum number of tokens to use for the prompt
@@ -46,6 +46,30 @@ class AudioDataset(Dataset):
         audio_aug: bool = False,
         audio_augment_params: Optional[dict] = None,
     ) -> None:
+        """
+        Initializes the class with the given parameters.
+
+        Args:
+            hu_dataset (HU_Dataset): The dataset to use.
+            tokenizer (Tokenizer): The tokenizer to use.
+            device (Optional[torch.device], optional): The device to use. Defaults to None.
+            no_timestamps_training (bool, optional): Whether to use no timestamps for training. Defaults to False.
+            n_mels (int, optional): The number of mel filters to use. Defaults to 80.
+            max_prompt_length (int, optional): The maximum number of tokens to use for the prompt. Defaults to 223.
+            prompt_use_rate (float, optional): The rate at which to use prompts. Defaults to 0.5.
+            no_timestamps_rate (float, optional): The rate at which to use no timestamps. Defaults to 0.5.
+            spec_augment (bool, optional): Whether to use spectrogram augmentation. Defaults to False.
+            spec_augment_params (Optional[dict], optional): The parameters for spectrogram augmentation. Defaults to None.
+            audio_aug (bool, optional): Whether to use audio augmentation, such as noise, high-pass filter, and low-pass filter. Defaults to False.
+            audio_augment_params (Optional[dict], optional): The parameters for audio augmentation. Defaults to None.
+
+        Returns:
+            None
+
+        Raises:
+            ValueError: If the dataset does not contain the required columns.
+
+        """
         self.hu_dataset = hu_dataset
         self.tokenizer = tokenizer
         self.n_mels = n_mels

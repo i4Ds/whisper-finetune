@@ -51,6 +51,21 @@ def main_loop(
     save_dir: str,
     t_config: dict,
 ) -> None:
+    """
+    Main loop function that iterates through training steps, evaluates the model, logs training progress, and saves models.
+    
+    Parameters:
+        model (WhisperModel): The Whisper model to be trained.
+        train_loader (DataLoader): DataLoader for the training set.
+        dev_loader (DataLoader): DataLoader for the development set.
+        optimizer (torch.optim.Optimizer): Optimizer for model training.
+        scheduler (torch.optim.lr_scheduler.LambdaLR): Learning rate scheduler.
+        save_dir (str): Directory to save the trained model.
+        t_config (dict): Configuration settings for training.
+    
+    Returns:
+        None
+    """
     wandb.watch(model, log="all")
 
     min_loss, min_wer = evaluate(model, dev_loader, t_config)
@@ -87,6 +102,19 @@ def main_loop(
 
 
 def main(config):
+    """
+    Runs the main training loop for a Whisper model.
+
+    Args:
+        config (dict): A dictionary containing the configuration for the training.
+
+    Returns:
+        None
+
+    Raises:
+        NotImplementedError: If gradient checkpointing is enabled for the encoder and the 'gradient_checkpointing_encoder_last_only' flag is set.
+
+    """
     set_seed(config["seed"])
     # Start GPU memory profiling
     torch.cuda.reset_peak_memory_stats("cuda")
@@ -143,7 +171,7 @@ def main(config):
     if config["training"]["gradient_checkpointing_encoder"]:
         del whisper_model.encoder
         if config["training"]["gradient_checkpointing_encoder_last_only"]:
-            raise NotImplementedError()
+            raise ValueError("gradient_checkpointing_encoder_last_only is not supported when gradient_checkpointing_encoder is enabled")
         else:
             whisper_model.encoder = CheckpointedStochasticAudioEncoder(
                 whisper_model.dims.n_mels,
@@ -164,43 +192,9 @@ def main(config):
             config['training']['stochastic_depth']
         )
 
-    # We need to reload weights for deletected Decoder and Encoder.
+    # We need to reload weights for deletected Decoder and Encoder because we need to set the heads.
     if config["training"]["gradient_checkpointing_decoder"] or config["training"]["gradient_checkpointing_encoder"]:
         whisper_model = load_model_and_set_heads(whisper_model, config["model"]["init_name"])
-
-    if config["model"].get("quantize_model", False):
-        f = print_size_of_model(whisper_model, "fp32")
-        whisper_model = torch.quantization.quantize_dynamic(whisper_model, dtype=torch.qint8)
-        q = print_size_of_model(whisper_model, "int8")
-        print("{0:.2f} times smaller".format(f / q))
-        del q, f
-
-        # Check if we have a lora training run or not.
-    if config["model"]["lora"]:
-        from minlora import LoRAParametrization, add_lora
-
-        from whisper_finetune.model.lora import (
-            disable_all_but_parametrized_grads,
-        )
-        from whisper.model import Linear as WLinear
-
-        # Create LORA config
-        lora_config = {
-            WLinear: {
-                "weight": partial(LoRAParametrization.from_linear, **config["model"]["lora_config"]),
-            },
-        }
-
-        print_trainable_parameters(whisper_model)
-        if config["training"]["train_only_decoder"]:
-            add_lora(whisper_model.decoder, lora_config=lora_config)
-        if config["training"]["train_only_encoder"]:
-            add_lora(whisper_model.encoder, lora_config=lora_config)
-        if not config["training"]["train_only_encoder"] and not config["training"]["train_only_decoder"]:
-            add_lora(whisper_model, lora_config=lora_config)
-        disable_all_but_parametrized_grads(whisper_model)
-        print("---LORA---")
-        print_trainable_parameters(whisper_model)
 
     if config["training"]["train_only_decoder"]:
         disable_all_grads(whisper_model.encoder)
@@ -220,10 +214,10 @@ def main(config):
         ds_config["val_datasets"], ds_config["select_n_per_v_ds"], ds_config["valid_split_name"]
     )
 
-    # Calculate some steps
+    # Calculate steps
     config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)
     config['training']['val_steps'] = calculate_val_steps(config)
-    if config['lr_scheduler']['warmup_steps'] < 1.0:
+    if config['lr_scheduler']['warmup_steps'] < 1.0: # If smaller than one, assume it's a ratio.
         config['lr_scheduler']['warmup_steps'] = int(config['lr_scheduler']['warmup_steps'] * len(train_dataset))
 
     # Get tokenizer
