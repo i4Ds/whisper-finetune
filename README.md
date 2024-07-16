@@ -1,5 +1,4 @@
 # Whisper-Finetune
-
 This repository contains code for finetuning the Whisper speech-to-text model. It uses wandb to log metrics and store models.
 
 ## Installation

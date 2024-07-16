@@ -207,8 +207,11 @@ def infinite_iter(data_loader: DataLoader) -> Iterator:
         for batch in data_loader:
             yield batch
 
-    
 class CheckpointedStochasticAudioEncoder(AudioEncoder):
+    """
+    CheckpointedStochasticAudioEncoder, which contains stochastic depth and checkpointing, also used in the original Whisper model.
+    See: https://arxiv.org/abs/1603.09382
+    """
     def __init__(self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, stochastic_depth_prob: float):
         super().__init__(n_mels, n_ctx, n_state, n_head, n_layer)
         self.stochastic_depth_prob = stochastic_depth_prob
@@ -238,6 +241,11 @@ class CheckpointedStochasticAudioEncoder(AudioEncoder):
         return x
     
 class CheckpointedStochasticTextDecoder(TextDecoder):
+    """
+    CheckpointedStochasticTextDecoder, which contains stochastic depth and checkpointing, also used in the original Whisper model.
+    See: https://arxiv.org/abs/1603.09382
+    """
+
     def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, stochastic_depth_prob: float):
         super().__init__(n_vocab, n_ctx, n_state, n_head, n_layer)
         self.stochastic_depth_prob = stochastic_depth_prob
@@ -258,7 +266,7 @@ class CheckpointedStochasticTextDecoder(TextDecoder):
         x = self.token_embedding(x) + self.positional_embedding[offset : offset + x.shape[-1]]
         x = x.to(xa.dtype)
 
-        for i, block in enumerate(self.blocks):
+        for block in self.blocks:
             block_p = partial(block, xa=xa, mask=self.mask, kv_cache=kv_cache)
             x = self.stochastic_depth(x, block_p, self.stochastic_depth_prob)
 
