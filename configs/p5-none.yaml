@@ -1,10 +1,6 @@
 model:
   init_name: large-v2
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
-  lora_config:
-    rank: 32
-    lora_alpha: 64
-    lora_dropout_p: 0.05
 dataset:
   train_datasets: [i4ds/p5-synthetic-data-for-stt-sds-stt-train-val]
   select_n_per_t_ds: [null]
