@@ -8,9 +8,9 @@ dataset:
   select_n_per_v_ds: [null]
   train_split_name: "train"
   valid_split_name: "validation"
-  no_timestamp_training: False
+  no_timestamp_training: True
   max_prompt_length: 223
-  prompt_use_rate: 0.5
+  prompt_use_rate: 0.0
   no_timestamp_rate: 0.5
   batch_size: 16
   batch_size_eval: 16
