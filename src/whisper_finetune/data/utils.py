@@ -7,7 +7,7 @@ from typing import Union
 import torch
 import torch.nn.functional as F
 import numpy as np
-
+from collections import defaultdict
 
 class TimeWarpAugmenter:
     def __init__(self, W=50):
@@ -115,26 +115,65 @@ class TimeWarpAugmenter:
 
 
 # Function to process individual datasets
-def process_dataset(dataset_names, select_n_per_ds, split_name):
-    """Function to process individual datasets. Mostly, we were not consistent in naming and sometimes did not add all required keys."""
+def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col):
+    """
+    Function to process individual datasets with optional groupby sampling.
+    
+    Args:
+    - dataset_names (list): List of dataset names to process.
+    - select_n_per_ds (list): List of N values for sampling from each dataset.
+    - split_name (str): The split of the dataset to use.
+    - groupby_col (list): Column name to use for groupby sampling.
+    
+    Returns:
+    - concatenated_dataset: A concatenated dataset of all processed datasets.
+    """
     processed_datasets = []
-    for N, dataset_name in zip(select_n_per_ds, dataset_names):
+    
+    for N, GROUPBYCOL, dataset_name in zip(select_n_per_ds, groupby_col, dataset_names):
         dataset = load_dataset(dataset_name, split=split_name)
+        original_size = len(dataset)
+        print(f"Processing dataset: {dataset_name}")
+        print(f"Original dataset size: {original_size}")
+        
         if N is not None:
-            # Ensure N does not exceed dataset size
-            N = min(N, len(dataset))
-            selected_indices = np.random.choice(len(dataset), size=N, replace=False)
+            if GROUPBYCOL and GROUPBYCOL in dataset.column_names:
+                print(f"Performing groupby sampling on column: {GROUPBYCOL}")
+                # Perform groupby sampling
+                groups = defaultdict(list)
+                for idx, item in enumerate(dataset[GROUPBYCOL]):
+                    groups[item].append(idx)
+                
+                print(f"Number of groups: {len(groups)}")
+                selected_indices = []
+                for group_name, group_indices in groups.items():
+                    # Select N samples from each group
+                    print(f"Selected {N} from group {group_name}")
+                    selected_indices.extend(np.random.choice(group_indices, size=N))
+                
+            else:
+                print("Performing regular random sampling")
+                # Regular random sampling
+                selected_indices = np.random.choice(len(dataset), size=N, replace=False)
+            
             dataset = dataset.select(selected_indices)
+            print(f"Number of samples selected: {len(dataset)}")
+        else:
+            print("No sampling performed (N is None)")
+        
         if "sentence" in dataset.column_names:
             dataset = dataset.rename_column("sentence", "text")
-
-        if "language" not in dataset.column_names:  # Bad hack because we forgot to add language to the dataset.
+        
+        if "language" not in dataset.column_names:
             dataset = dataset.map(
                 add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
             )
-
+        
         processed_datasets.append(dataset)
-    return concatenate_datasets(processed_datasets)
+    
+    concatenated_dataset = concatenate_datasets(processed_datasets)
+    print(f"Total rows in concatenated dataset: {len(concatenated_dataset)}")
+    return concatenated_dataset
 
 
 def add_fixed_value(batch, col_name, fixed_value):

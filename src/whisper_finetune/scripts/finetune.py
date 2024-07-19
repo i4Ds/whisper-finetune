@@ -206,12 +206,12 @@ def main(config):
     # Get datasets
     ds_config = config["dataset"]
     train_dataset = process_dataset(
-        ds_config["train_datasets"], ds_config["select_n_per_t_ds"], ds_config["train_split_name"]
+        ds_config["train_datasets"], ds_config["select_n_per_t_ds"], ds_config["train_split_name"], ds_config["groupby_col"]
     )
 
     # Process validation datasets
     val_dataset = process_dataset(
-        ds_config["val_datasets"], ds_config["select_n_per_v_ds"], ds_config["valid_split_name"]
+        ds_config["val_datasets"], ds_config["select_n_per_v_ds"], ds_config["valid_split_name"], ds_config["groupby_col"]
     )
 
     # Calculate steps

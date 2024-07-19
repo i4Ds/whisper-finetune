@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the datasets to download
-DATASET_NAMES=("i4ds/p5-synthetic-data-for-stt-noise-train-val" "i4ds/p5-synthetic-data-for-stt-real-1-train-val" "i4ds/p5-synthetic-data-for-stt-generated-1-train-val")
+DATASET_NAMES=("i4ds/p5-synthetic-data-for-stt-real-1-train-val")
 
 # Create a virtual environment in the current directory
 python3 -m venv .hu_ds_download

@@ -4,6 +4,7 @@ model:
 dataset:
   train_datasets: [i4ds/p5-synthetic-data-for-stt-sds-stt-train-val]
   select_n_per_t_ds: [null]
+  groupby_col: [null]
   val_datasets: [i4ds/p5-synthetic-data-for-stt-sds-stt-train-val]
   select_n_per_v_ds: [1000]
   train_split_name: "train"
