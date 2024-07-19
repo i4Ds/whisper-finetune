@@ -36,7 +36,7 @@ class AudioDataset(Dataset):
         hu_dataset: HU_Dataset,
         tokenizer: Tokenizer,
         device: Optional[torch.device] = None,  # CUDA does not allow for multiprocessing.
-        no_timestamps_training: bool = False,
+        no_timestamp_training: bool = False,
         n_mels: int = 80,
         max_prompt_length: int = 223,  # The maximum number of tokens to use for the prompt
         prompt_use_rate: float = 0.5,
@@ -53,7 +53,7 @@ class AudioDataset(Dataset):
             hu_dataset (HU_Dataset): The dataset to use.
             tokenizer (Tokenizer): The tokenizer to use.
             device (Optional[torch.device], optional): The device to use. Defaults to None.
-            no_timestamps_training (bool, optional): Whether to use no timestamps for training. Defaults to False.
+            no_timestamp_training (bool, optional): Whether to use no timestamps for training. Defaults to False.
             n_mels (int, optional): The number of mel filters to use. Defaults to 80.
             max_prompt_length (int, optional): The maximum number of tokens to use for the prompt. Defaults to 223.
             prompt_use_rate (float, optional): The rate at which to use prompts. Defaults to 0.5.
@@ -74,7 +74,7 @@ class AudioDataset(Dataset):
         self.tokenizer = tokenizer
         self.n_mels = n_mels
         self.device = device
-        self.no_timestamps_training = no_timestamps_training
+        self.no_timestamp_training = no_timestamp_training
         self.max_prompt_length = max_prompt_length
         self.prompt_use_rate = prompt_use_rate
         self.no_timestamps_rate = no_timestamps_rate
@@ -228,7 +228,7 @@ class AudioDataset(Dataset):
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         record = self.hu_dataset[index]
-        no_timestamps = self.no_timestamps_training or torch.rand(1).item() < self.no_timestamps_rate
+        no_timestamps = self.no_timestamp_training or torch.rand(1).item() < self.no_timestamps_rate
 
         prompt_tokens = self._get_prompt_tokens(record, no_timestamps)
         text_tokens, next_partial_segment_start = self._get_text_tokens(record["text"], no_timestamps)
@@ -271,7 +271,7 @@ def get_dataloader(
     n_mels: int = 80,
     sampler: Optional[torch.utils.data.sampler.Sampler] = None,
     device: Optional[torch.device] = None,  # Does not allow for multiprocessing.
-    no_timestamps_training: bool = False,
+    no_timestamp_training: bool = False,
     max_prompt_length: int = 223,
     prompt_use_rate: float = 0.5,
     no_timestamps_rate: float = 0.5,
@@ -287,7 +287,7 @@ def get_dataloader(
         hu_dataset,
         tokenizer,
         device=device,
-        no_timestamps_training=no_timestamps_training,
+        no_timestamp_training=no_timestamp_training,
         n_mels=n_mels,
         max_prompt_length=max_prompt_length,
         prompt_use_rate=prompt_use_rate,
