@@ -5,6 +5,8 @@
 
 This repository contains code for fine-tuning the Whisper speech-to-text model. It utilizes Weights & Biases (wandb) for logging metrics and storing models. Key features include:
 
+- Timestamp training
+- Prompt training
 - Stochastic depth implementation for improved model generalization
 - Correct implementation of SpecAugment for robust audio data augmentation
 - Checkpointing functionality to save and resume training progress, crucial for handling long-running experiments and potential interruptions
