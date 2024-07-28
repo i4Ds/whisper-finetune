@@ -68,5 +68,5 @@ augmentation:
       target_rate: 16000
       min_snr_in_db: 25
       max_snr_in_db: 99
-seed: 123
+seed: 42
 save_dir: output
