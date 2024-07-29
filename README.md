@@ -10,7 +10,7 @@ This repository contains code for fine-tuning the Whisper speech-to-text model. 
 - Stochastic depth implementation for improved model generalization
 - Correct implementation of SpecAugment for robust audio data augmentation
 - Checkpointing functionality to save and resume training progress, crucial for handling long-running experiments and potential interruptions
-- Integration with Weights & Biases (wandb) for comprehensive experiment tracking and model versioning
+- Integration with Weights & Biases (wandb) for experiment tracking and model versioning
 
 ## Installation
 
