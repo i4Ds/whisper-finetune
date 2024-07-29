@@ -28,7 +28,7 @@ This repository contains code for fine-tuning the Whisper speech-to-text model. 
    ```
 
 ## Data
-Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed as a [🤗 Datasets](https://huggingface.co/docs/datasets/en/index) to the model.
+Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed as a [🤗 Datasets](https://huggingface.co/docs/datasets/en/index) to the script.
 
 ## Usage
 
