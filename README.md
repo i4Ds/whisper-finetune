@@ -20,7 +20,7 @@ This repository contains code for fine-tuning the Whisper speech-to-text model. 
    cd whisper-finetune
    ```
 
-2. Create and activate a virtual environment (strongly recommended). Use Venv or Anaconda or your favorite virtual enviroment creator.
+2. Create and activate a virtual environment (strongly recommended) with Python 3.9.* and a Rust compiler available.
 
 3. Install the package in editable mode:
    ```bash
