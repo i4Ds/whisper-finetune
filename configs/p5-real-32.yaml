@@ -3,7 +3,7 @@ model:
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
 dataset:
   train_datasets: [i4ds/p5-synthetic-data-for-stt-sds-stt-train-val, i4ds/p5-synthetic-data-for-stt-real-train-val]
-  select_n_per_t_ds: [null, 12]
+  select_n_per_t_ds: [null, 32]
   groupby_col: [null, location]
   val_datasets: [i4ds/p5-synthetic-data-for-stt-sds-stt-train-val]
   select_n_per_v_ds: [1000]
@@ -68,5 +68,5 @@ augmentation:
       target_rate: 16000
       min_snr_in_db: 25
       max_snr_in_db: 99
-seed: 123
+seed: 42
 save_dir: output
