@@ -48,7 +48,7 @@ augmentation:
     p: 1.0
     freq_mask_param: 27
     time_warp_w: 80
-  audio_augment:
+  audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).
     apply: False
     lpf: # Low pass filter
       p: 0.1
