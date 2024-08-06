@@ -1,13 +1,13 @@
-import numpy as np
-import torch
-from datasets import concatenate_datasets, load_dataset
-from librosa.feature.inverse import mel_to_audio
-from whisper.audio import N_FFT, HOP_LENGTH, N_SAMPLES
+from collections import defaultdict
 from typing import Union
+
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
-from collections import defaultdict
+from datasets import concatenate_datasets, load_dataset
+from librosa.feature.inverse import mel_to_audio
+from whisper.audio import HOP_LENGTH, N_FFT, N_SAMPLES
+
 
 class TimeWarpAugmenter:
     def __init__(self, W=50):
@@ -118,24 +118,24 @@ class TimeWarpAugmenter:
 def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col):
     """
     Function to process individual datasets with optional groupby sampling.
-    
+
     Args:
     - dataset_names (list): List of dataset names to process.
     - select_n_per_ds (list): List of N values for sampling from each dataset.
     - split_name (str): The split of the dataset to use.
     - groupby_col (list): Column name to use for groupby sampling.
-    
+
     Returns:
     - concatenated_dataset: A concatenated dataset of all processed datasets.
     """
     processed_datasets = []
-    
+
     for N, GROUPBYCOL, dataset_name in zip(select_n_per_ds, groupby_col, dataset_names):
         dataset = load_dataset(dataset_name, split=split_name)
         original_size = len(dataset)
         print(f"Processing dataset: {dataset_name}")
         print(f"Original dataset size: {original_size}")
-        
+
         if N is not None:
             if GROUPBYCOL and GROUPBYCOL in dataset.column_names:
                 print(f"Performing groupby sampling on column: {GROUPBYCOL}")
@@ -143,34 +143,34 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col):
                 groups = defaultdict(list)
                 for idx, item in enumerate(dataset[GROUPBYCOL]):
                     groups[item].append(idx)
-                
+
                 print(f"Number of groups: {len(groups)}")
                 selected_indices = []
                 for group_name, group_indices in groups.items():
                     # Select N samples from each group
                     print(f"Selected {N} from group {group_name}")
                     selected_indices.extend(np.random.choice(group_indices, size=N))
-                
+
             else:
                 print("Performing regular random sampling")
                 # Regular random sampling
                 selected_indices = np.random.choice(len(dataset), size=N, replace=False)
-            
+
             dataset = dataset.select(selected_indices)
             print(f"Number of samples selected: {len(dataset)}")
         else:
             print("No sampling performed (N is None)")
-        
+
         if "sentence" in dataset.column_names:
             dataset = dataset.rename_column("sentence", "text")
-        
+
         if "language" not in dataset.column_names:
             dataset = dataset.map(
                 add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
             )
-        
+
         processed_datasets.append(dataset)
-    
+
     concatenated_dataset = concatenate_datasets(processed_datasets)
     print(f"Total rows in concatenated dataset: {len(concatenated_dataset)}")
     return concatenated_dataset
@@ -185,7 +185,7 @@ def pad_or_trim(array, length: int = N_SAMPLES, *, axis: int = -1):
     """
     Pad or trim the audio array to `length`, using the minimum value in the array for padding.
     This is particularly useful for spectrograms where padding with the minimum value (silence) is desired.
-    As mentioned by Openai, we should zeropad in Audio, which is the minimum value of the melspectrogram 
+    As mentioned by Openai, we should zeropad in Audio, which is the minimum value of the melspectrogram
     in the melspectrogram-dimension.
     """
     if torch.is_tensor(array):

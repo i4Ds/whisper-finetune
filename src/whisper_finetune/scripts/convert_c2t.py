@@ -1,4 +1,5 @@
 import argparse
+import os
 import shutil
 from pathlib import Path
 
@@ -21,14 +22,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--quantization",
         type=str,
-        required=False,
+        default="float16",
         help="Optional quantization",
     )
     parser.add_argument(
         "--tokenizer_json_path",
         type=str,
-        required=True,
+        default="cache/config.json",
         help="Tokenizer file for huggingface based model",
+    )
+    parser.add_argument(
+        "--config_json_path",
+        type=str,
+        default="cache/config.json",
+        help="Path to config.json file",
+    )
+    parser.add_argument(
+        "--vocabulary_json_path",
+        type=str,
+        default="cache/vocabulary.json",
+        help="Path to vocabulary.json file",
     )
     args = parser.parse_args()
     return args
@@ -38,16 +51,22 @@ def main() -> None:
     args = parse_args()
 
     hf_model_folder = Path(args.out_dir, "hf")
+    os.makedirs(hf_model_folder, exist_ok=True)
     ctranslate2_model_folder = Path(args.out_dir, "ct2")
+    os.makedirs(ctranslate2_model_folder, exist_ok=True)
+
+    # Copy necessary files
+    shutil.copyfile(args.tokenizer_json_path, Path(hf_model_folder, "tokenizer.json"))
+    shutil.copyfile(args.config_json_path, Path(hf_model_folder, "config.json"))
+    shutil.copyfile(args.vocabulary_json_path, Path(hf_model_folder, "vocabulary.json"))
 
     # Convert to Huggingface Model
     convert_openai_whisper_to_tfms(args.model, hf_model_folder)
-    shutil.copyfile(args.tokenizer_json_path, Path(hf_model_folder, "tokenizer.json"))
 
     # Convert to ctranslate2
     converter = TransformersConverter(
         hf_model_folder,
-        copy_files=["tokenizer.json"],
+        copy_files=["tokenizer.json", "config.json", "vocabulary.json"],
         load_as_float16=args.quantization in ("float16", "int8_float16"),
     )
 

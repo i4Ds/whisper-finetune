@@ -1,7 +1,7 @@
 import math
 import os
 import random
-import uuid
+from datetime import datetime
 from socket import gethostname
 from typing import Dict
 
@@ -25,8 +25,9 @@ def calculate_training_steps(config: Dict, train_dataset) -> None:
 
 
 def calculate_val_steps(config: Dict) -> None:
-    val_steps = (config["training"]['train_steps'] / config["training"]["epochs"]) * config['training']['eval_steps']
+    val_steps = (config["training"]["train_steps"] / config["training"]["epochs"]) * config["training"]["eval_steps"]
     return int(val_steps)
+
 
 def read_config(yaml_file_path):
     print(f"Reading config {yaml_file_path}")
@@ -60,7 +61,7 @@ def distributed_setup(rank, world_size, gpus_per_node):
 
 
 def get_unique_base_path():
-    return os.getenv("SLURM_JOB_ID", str(uuid.uuid4()))
+    return os.getenv("SLURM_JOB_ID", datetime.now().strftime("%Y%m%d_%H%M%S"))
 
 
 def handle_cuda_memory_operations(config: dict) -> None:
