@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tokenizer_json_path",
         type=str,
-        default="cache/config.json",
+        default="cache/tokenizer.json",
         help="Tokenizer file for huggingface based model",
     )
     parser.add_argument(
