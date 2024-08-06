@@ -9,10 +9,10 @@ dataset:
   select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
   valid_split_name: "validation" # Split name to use for the validation dataset.
-  no_timestamp_training: True
-  max_prompt_length: 223
-  prompt_use_rate: 0.0
-  no_timestamp_rate: 0.5
+  no_timestamp_training: True # Whether to use no timestamps for training.
+  max_prompt_length: 223 # The maximum number of tokens to use for the prompt (Fixed by whisper).
+  prompt_use_rate: 0.5 # How often to use the prompt.
+  no_timestamp_rate: 0.5 # How often to use no timestamps.
   batch_size: 16
   batch_size_eval: 16
 lr_scheduler:
@@ -29,10 +29,10 @@ optimizer:
     amsgrad: False
 training:
   accum_grad_steps: 16
-  train_only_decoder: False
-  train_only_encoder: False
+  train_only_decoder: False # If true, disable the grads of the encoder
+  train_only_encoder: False # If true, disable the grads of the decoder
   max_grad_norm: 1.0
-  stochastic_depth: 0.0
+  stochastic_depth: 0.0 # Stochastic depth, used in whisper. See https://arxiv.org/abs/1603.09382
   epochs: 2
   eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
@@ -41,7 +41,7 @@ training:
   gradient_checkpointing_encoder: True # If there should be gradient checkpointing in the encoder.
   gradient_checkpointing_encoder_last_only: False # Somehow, does not save a lot of memory (~1%).
   gradient_checkpointing_decoder: True # If there should be gradient checkpointing in the decoder.
-augmentation:
+augmentation: # Data augmentations, see the whisper paper for more details
   spec_augment:
     apply: True
     time_mask_param: 100
