@@ -17,6 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out_dir",
         type=str,
+        required=True,
         help="Path to directory to save converted model",
     )
     parser.add_argument(
@@ -52,23 +53,24 @@ def main() -> None:
 
     hf_model_folder = Path(args.out_dir, "hf")
     os.makedirs(hf_model_folder, exist_ok=True)
-    ctranslate2_model_folder = Path(args.out_dir, "ct2")
-    os.makedirs(ctranslate2_model_folder, exist_ok=True)
+
+    # Convert to Huggingface Model
+    hf_model = convert_openai_whisper_to_tfms(args.model, hf_model_folder)
+    hf_model[0].save_pretrained(hf_model_folder)
 
     # Copy necessary files
     shutil.copyfile(args.tokenizer_json_path, Path(hf_model_folder, "tokenizer.json"))
     shutil.copyfile(args.config_json_path, Path(hf_model_folder, "config.json"))
     shutil.copyfile(args.vocabulary_json_path, Path(hf_model_folder, "vocabulary.json"))
 
-    # Convert to Huggingface Model
-    convert_openai_whisper_to_tfms(args.model, hf_model_folder)
-
     # Convert to ctranslate2
     converter = TransformersConverter(
         hf_model_folder,
-        copy_files=["tokenizer.json", "config.json", "vocabulary.json"],
+        copy_files=["tokenizer.json"],
         load_as_float16=args.quantization in ("float16", "int8_float16"),
     )
+
+    ctranslate2_model_folder = Path(args.out_dir, "ct2")
 
     converter.convert(output_dir=ctranslate2_model_folder, quantization=args.quantization)
 
