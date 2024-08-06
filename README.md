@@ -39,6 +39,12 @@ Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed a
    python src/whisper_finetune/scripts/finetune.py --config configs/large-cv-srg-sg-corpus.yaml
    ```
 
+
+## Deployment
+We suggest to use [faster-whisper](https://github.com/SYSTRAN/faster-whisper). To convert your fine-tuned model, you can use the script located at `src/whisper_finetune/scripts/convert_c2t.py`. 
+
+Further improvement of quality can be archieved by serving the requests with [whisperx](https://github.com/m-bain/whisperX).
+
 ## Configuration
 
 Modify the YAML files in the `configs/` directory to customize your fine-tuning process. Refer to the existing configuration files for examples of available options.

@@ -6,11 +6,12 @@ import os
 import random
 from dataclasses import asdict
 from functools import partial
-from typing import Iterator, Optional, Union, Callable
+from typing import Callable, Iterator, Optional, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+import wandb
 from torch import Tensor
 from torch.utils.checkpoint import checkpoint
 from torch.utils.data import DataLoader
@@ -20,7 +21,6 @@ from whisper.model import AudioEncoder, TextDecoder, Whisper
 from whisper.tokenizer import get_tokenizer
 from whisper.version import __version__
 
-import wandb
 from whisper_finetune.eval.utils import VOCAB_SPECS, normalize_text
 from whisper_finetune.eval.wer import WER
 
@@ -207,11 +207,13 @@ def infinite_iter(data_loader: DataLoader) -> Iterator:
         for batch in data_loader:
             yield batch
 
+
 class CheckpointedStochasticAudioEncoder(AudioEncoder):
     """
     CheckpointedStochasticAudioEncoder, which contains stochastic depth and checkpointing, also used in the original Whisper model.
     See: https://arxiv.org/abs/1603.09382
     """
+
     def __init__(self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, stochastic_depth_prob: float):
         super().__init__(n_mels, n_ctx, n_state, n_head, n_layer)
         self.stochastic_depth_prob = stochastic_depth_prob
@@ -239,7 +241,8 @@ class CheckpointedStochasticAudioEncoder(AudioEncoder):
 
         x = self.ln_post(x)
         return x
-    
+
+
 class CheckpointedStochasticTextDecoder(TextDecoder):
     """
     CheckpointedStochasticTextDecoder, which contains stochastic depth and checkpointing, also used in the original Whisper model.
@@ -274,7 +277,8 @@ class CheckpointedStochasticTextDecoder(TextDecoder):
         logits = (x @ torch.transpose(self.token_embedding.weight.to(x.dtype), 0, 1)).float()
 
         return logits
-    
+
+
 def load_model_and_set_heads(
     model: Whisper,
     name: str,
@@ -325,4 +329,3 @@ def load_model_and_set_heads(
         model.set_alignment_heads(alignment_heads)
 
     return model.to(device)
-

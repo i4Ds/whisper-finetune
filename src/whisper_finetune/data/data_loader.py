@@ -9,12 +9,11 @@ from datasets import Dataset as HU_Dataset
 from numpy import ndarray
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
+from torch_audiomentations import AddColoredNoise, HighPassFilter, LowPassFilter
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
 
 from whisper_finetune.data.utils import TimeWarpAugmenter, pad_or_trim
-
-from torch_audiomentations import LowPassFilter, HighPassFilter, AddColoredNoise
 
 
 @dataclass

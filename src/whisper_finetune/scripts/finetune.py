@@ -1,18 +1,20 @@
 import argparse
 import logging
 import os
+import subprocess
 from functools import partial
 from pathlib import Path
-import subprocess
+from pprint import pprint
+
 import torch
+import wandb
 import whisper
 from torch.ao.nn.quantized.dynamic.modules.linear import Linear as QLinear
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from whisper import Whisper as WhisperModel
 from whisper.tokenizer import get_tokenizer
-from pprint import pprint
-import wandb
+
 from whisper_finetune.data.data_loader import get_dataloader
 from whisper_finetune.data.utils import process_dataset
 from whisper_finetune.model.model_utils import (
@@ -23,20 +25,19 @@ from whisper_finetune.model.model_utils import (
     load_model_and_set_heads,
     save_model,
     train_step,
-    
 )
 from whisper_finetune.model.optimizer import get_optimizer
 from whisper_finetune.model.scheduler import get_scheduler
 from whisper_finetune.utils import (
     calculate_training_steps,
     calculate_val_steps,
+    disable_all_grads,
     get_unique_base_path,
     handle_cuda_memory_operations,
     print_size_of_model,
     print_trainable_parameters,
     read_config,
     set_seed,
-    disable_all_grads,
 )
 
 ENABLE_MEMORY_PROFILING = False
@@ -53,7 +54,7 @@ def main_loop(
 ) -> None:
     """
     Main loop function that iterates through training steps, evaluates the model, logs training progress, and saves models.
-    
+
     Parameters:
         model (WhisperModel): The Whisper model to be trained.
         train_loader (DataLoader): DataLoader for the training set.
@@ -62,7 +63,7 @@ def main_loop(
         scheduler (torch.optim.lr_scheduler.LambdaLR): Learning rate scheduler.
         save_dir (str): Directory to save the trained model.
         t_config (dict): Configuration settings for training.
-    
+
     Returns:
         None
     """
@@ -82,7 +83,7 @@ def main_loop(
         wandb.log({"Learning rate": scheduler.get_last_lr()[0]})
         wandb.log({"Train loss": train_loss})  # Log training loss
 
-        if (step % t_config['val_steps']) == 0 or step == t_config["train_steps"] + 1:
+        if (step % t_config["val_steps"]) == 0 or step == t_config["train_steps"] + 1:
             eval_loss, eval_wer = evaluate(model, dev_loader, t_config)
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
             wandb.log({"Validation loss": eval_loss, "Validation WER": eval_wer})  # Log validation loss
@@ -171,7 +172,9 @@ def main(config):
     if config["training"]["gradient_checkpointing_encoder"]:
         del whisper_model.encoder
         if config["training"]["gradient_checkpointing_encoder_last_only"]:
-            raise ValueError("gradient_checkpointing_encoder_last_only is not supported when gradient_checkpointing_encoder is enabled")
+            raise ValueError(
+                "gradient_checkpointing_encoder_last_only is not supported when gradient_checkpointing_encoder is enabled"
+            )
         else:
             whisper_model.encoder = CheckpointedStochasticAudioEncoder(
                 whisper_model.dims.n_mels,
@@ -179,7 +182,7 @@ def main(config):
                 whisper_model.dims.n_audio_state,
                 whisper_model.dims.n_audio_head,
                 whisper_model.dims.n_audio_layer,
-                config['training']['stochastic_depth']
+                config["training"]["stochastic_depth"],
             )
     if config["training"]["gradient_checkpointing_decoder"]:
         del whisper_model.decoder
@@ -189,7 +192,7 @@ def main(config):
             whisper_model.dims.n_text_state,
             whisper_model.dims.n_text_head,
             whisper_model.dims.n_text_layer,
-            config['training']['stochastic_depth']
+            config["training"]["stochastic_depth"],
         )
 
     # We need to reload weights for deletected Decoder and Encoder because we need to set the heads.
@@ -206,19 +209,25 @@ def main(config):
     # Get datasets
     ds_config = config["dataset"]
     train_dataset = process_dataset(
-        ds_config["train_datasets"], ds_config["select_n_per_t_ds"], ds_config["train_split_name"], ds_config["groupby_col"]
+        ds_config["train_datasets"],
+        ds_config["select_n_per_t_ds"],
+        ds_config["train_split_name"],
+        ds_config["groupby_col"],
     )
 
     # Process validation datasets
     val_dataset = process_dataset(
-        ds_config["val_datasets"], ds_config["select_n_per_v_ds"], ds_config["valid_split_name"], ds_config["groupby_col"]
+        ds_config["val_datasets"],
+        ds_config["select_n_per_v_ds"],
+        ds_config["valid_split_name"],
+        ds_config["groupby_col"],
     )
 
     # Calculate steps
     config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)
-    config['training']['val_steps'] = calculate_val_steps(config)
-    if config['lr_scheduler']['warmup_steps'] < 1.0: # If smaller than one, assume it's a ratio.
-        config['lr_scheduler']['warmup_steps'] = int(config['lr_scheduler']['warmup_steps'] * len(train_dataset))
+    config["training"]["val_steps"] = calculate_val_steps(config)
+    if config["lr_scheduler"]["warmup_steps"] < 1.0:  # If smaller than one, assume it's a ratio.
+        config["lr_scheduler"]["warmup_steps"] = int(config["lr_scheduler"]["warmup_steps"] * len(train_dataset))
 
     # Get tokenizer
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
