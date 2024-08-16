@@ -4,7 +4,7 @@ model:
 dataset:
   train_datasets: [i4ds/sds-stt-spc-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_t_ds: [null, 15000] # How many rows to sample from the respective dataset per training run.
-  groupby_col: [null, null] # If set, it will preform a groupby sample in the respective train dataset. Total number of samples is select_n_per_t_ds * n_groups.
+  groupby_col: [null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
   val_datasets: [i4ds/sds-stt-spc-train-val-v2, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
