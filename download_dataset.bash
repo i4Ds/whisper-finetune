@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the datasets to download
-DATASET_NAMES=("i4ds/p5-synthetic-data-for-stt-real-1-train-val")
+DATASET_NAMES=("i4ds/sg_corp_train_no_overlap_no_speaker_ret" "i4ds/sg_corp_train_neg_overlap_no_speaker_ret")
 
 # Create a virtual environment in the current directory
 python3 -m venv .hu_ds_download
@@ -24,7 +24,7 @@ pip install datasets
 
 # Loop through the datasets and download each one
 for DATASET_NAME in "${DATASET_NAMES[@]}"; do
-    python3 -c "from datasets import load_dataset; dataset = load_dataset('$DATASET_NAME', download_mode='force_redownload')"
+    python3 -c "from datasets import load_dataset; dataset = load_dataset('$DATASET_NAME')"
 done
 
 # Deactivate the virtual environment when done
