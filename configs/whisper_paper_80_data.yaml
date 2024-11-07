@@ -2,9 +2,9 @@ model:
   init_name: large-v2
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
 dataset:
-  train_datasets: [i4ds/sds-stt-spc-train-val-v4, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
-  select_n_per_t_ds: [null, null, 15000] # How many rows to sample from the respective dataset per training run.
-  groupby_col: [null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
+  train_datasets: [i4ds/sds-stt-spc-train-val-v4]
+  select_n_per_t_ds: [46116] # How many rows to sample from the respective dataset per training run.
+  groupby_col: [null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
   val_datasets: [i4ds/sds-stt-spc-train-val-v4, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
@@ -32,7 +32,7 @@ training:
   train_only_decoder: False # If true, disable the grads of the encoder
   train_only_encoder: False # If true, disable the grads of the decoder
   max_grad_norm: 1.0
-  stochastic_depth: 0.0 # Stochastic depth, used in whisper. See https://arxiv.org/abs/1603.09382
+  stochastic_depth: 0.1 # Stochastic depth, used in whisper. See https://arxiv.org/abs/1603.09382
   epochs: 2
   eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
