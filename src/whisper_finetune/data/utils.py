@@ -153,8 +153,8 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col):
 
             else:
                 print("Performing regular random sampling")
-                # Regular random sampling
-                selected_indices = np.random.choice(len(dataset), size=N, replace=False)
+                # Regular sampling by selecting first N rows (for reproduceability)
+                selected_indices = np.arange(N)
 
             dataset = dataset.select(selected_indices)
             print(f"Number of samples selected: {len(dataset)}")

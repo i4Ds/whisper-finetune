@@ -16,4 +16,4 @@ conda activate whisper_finetune
 # Get env variables
 export $(cat .env | xargs)
 
-python src/whisper_finetune/scripts/finetune.py --config configs/whisper_paper_tests.yaml
+python src/whisper_finetune/scripts/finetune.py --config configs/large-sg-corpus-mc.yaml
