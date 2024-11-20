@@ -2,7 +2,7 @@ import argparse
 import logging
 import os
 import subprocess
-from functools import partial
+import sys
 from pathlib import Path
 from pprint import pprint
 
@@ -82,6 +82,7 @@ def main_loop(
         logging.info(f"train\t{step}\t{train_loss}\t{scheduler.get_last_lr()[0]}")
         wandb.log({"Learning rate": scheduler.get_last_lr()[0]})
         wandb.log({"Train loss": train_loss})  # Log training loss
+        assert train_loss < t_config['max_train_loss'], f"Train loss is above {t_config['max_train_loss']}, the loss is unable to converge."
 
         if (step % t_config["val_steps"]) == 0 or step == t_config["train_steps"] + 1:
             eval_loss, eval_wer = evaluate(model, dev_loader, t_config)

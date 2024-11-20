@@ -5,8 +5,8 @@ dataset:
   train_datasets: [i4ds/sds-stt-spc-train-val-v4]
   select_n_per_t_ds: [34587] # How many rows to sample from the respective dataset per training run.
   groupby_col: [null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
-  val_datasets: [i4ds/sds-stt-spc-train-val-v4, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
-  select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
+  val_datasets: [i4ds/sds-stt-spc-train-val-v4]
+  select_n_per_v_ds: [500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
   valid_split_name: "validation" # Split name to use for the validation dataset.
   no_timestamp_training: False # Whether to use no timestamps for training.
@@ -36,6 +36,7 @@ training:
   epochs: 2
   eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
+  max_train_loss: 15 # We observed that if the loss goes above 15, the training run has failed and should be restarted with other parameters.
   mixed_precision_training: True
   mp_dtype: fp16
   gradient_checkpointing_encoder: True # If there should be gradient checkpointing in the encoder.
