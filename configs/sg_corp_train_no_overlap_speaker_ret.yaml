@@ -36,6 +36,7 @@ training:
   epochs: 2
   eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
+  max_train_loss: 15 # We observed that if the loss goes above 15, the training run has failed and should be restarted with other parameters.
   mixed_precision_training: True
   mp_dtype: fp16
   gradient_checkpointing_encoder: True # If there should be gradient checkpointing in the encoder.
