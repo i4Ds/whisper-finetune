@@ -2,14 +2,12 @@ import argparse
 import logging
 import os
 import subprocess
-import sys
 from pathlib import Path
 from pprint import pprint
 
 import torch
 import wandb
 import whisper
-from torch.ao.nn.quantized.dynamic.modules.linear import Linear as QLinear
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from whisper import Whisper as WhisperModel
@@ -117,7 +115,6 @@ def main(config):
         NotImplementedError: If gradient checkpointing is enabled for the encoder and the 'gradient_checkpointing_encoder_last_only' flag is set.
 
     """
-    set_seed(config["seed"])
     # Start GPU memory profiling
     torch.cuda.reset_peak_memory_stats("cuda")
     if ENABLE_MEMORY_PROFILING:
@@ -296,5 +293,8 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, required=True, help="Path to the configuration YAML file")
     args = parser.parse_args()
     config = read_config(args.config)
+
+    # Ensure deterministic behavior across runs
+    set_seed(config["seed"])
 
     main(config)
