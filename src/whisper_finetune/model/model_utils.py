@@ -1,9 +1,6 @@
-import argparse
 import copy
 import io
-import json
 import os
-import random
 from dataclasses import asdict
 from functools import partial
 from typing import Callable, Iterator, Optional, Union
@@ -19,7 +16,6 @@ from tqdm import tqdm
 from whisper import _ALIGNMENT_HEADS, _MODELS, _download, available_models
 from whisper.model import AudioEncoder, TextDecoder, Whisper
 from whisper.tokenizer import get_tokenizer
-from whisper.version import __version__
 
 from whisper_finetune.eval.utils import VOCAB_SPECS, normalize_text
 from whisper_finetune.eval.wer import WER
@@ -188,18 +184,6 @@ def save_model(model: Whisper, save_path: str) -> None:
     model = copy.deepcopy(model).half()
     # save model weights and config in a dictionary that can be loaded with `whisper.load_model`
     torch.save({"model_state_dict": model.state_dict(), "dims": asdict(model.dims)}, save_path)
-
-
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-
-
-def save_args(args: argparse.Namespace, path: str) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(json.dumps(vars(args), indent=4, ensure_ascii=False))
 
 
 def infinite_iter(data_loader: DataLoader) -> Iterator:
