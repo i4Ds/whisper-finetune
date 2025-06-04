@@ -13,7 +13,7 @@ from torch_audiomentations import AddColoredNoise, HighPassFilter, LowPassFilter
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
 
-from whisper_finetune.data.utils import TimeWarpAugmenter, pad_or_trim
+from whisper_finetune.data.utils import TimeWarpAugmenter, ExtremeFrequencyMasking, pad_or_trim
 
 
 @dataclass
@@ -84,6 +84,14 @@ class AudioDataset(Dataset):
             self.time_masking = T.TimeMasking(time_mask_param=spec_augment_params["time_mask_param"])
             self.freq_masking = T.FrequencyMasking(freq_mask_param=spec_augment_params["freq_mask_param"])
             self.time_warping = TimeWarpAugmenter(W=spec_augment_params["time_warp_w"])
+            if "freq_mask_param_extreme" in spec_augment_params:
+                self.extreme_freq_masking = ExtremeFrequencyMasking(
+                    freq_mask_param=spec_augment_params["freq_mask_param_extreme"],
+                    low_freq_range=spec_augment_params.get("low_freq_range", 20),
+                    high_freq_range=spec_augment_params.get("high_freq_range", 20),
+                )
+            else:
+                self.extreme_freq_masking = None
         if self.audio_aug:
             self.acn = AddColoredNoise(**audio_augment_params["acn"])
             self.lpf = LowPassFilter(**audio_augment_params["lpf"])
@@ -203,6 +211,8 @@ class AudioDataset(Dataset):
             mel = self.time_warping(mel)
             mel = self.time_masking(mel)
             mel = self.freq_masking(mel)
+            if hasattr(self, "extreme_freq_masking") and self.extreme_freq_masking:
+                mel = self.extreme_freq_masking(mel)
 
         return mel
 
