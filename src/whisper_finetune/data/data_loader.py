@@ -222,7 +222,7 @@ class AudioDataset(Dataset):
             mel = self.time_masking(mel)
             mel = self.freq_masking(mel)
 
-        if self.extremes_spec_augment and self.extreme_freq_masking is not None:
+        if self.extreme_freq_masking:
             mel = self.extreme_freq_masking(mel)
 
         return mel
