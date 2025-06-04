@@ -48,10 +48,12 @@ augmentation: # Data augmentations, see the whisper paper for more details
     time_mask_param: 100
     p: 1.0
     freq_mask_param: 27
-    freq_mask_param_extreme: 10
+    time_warp_w: 80
+  extremes_spec_augment:
+    apply: False
+    freq_mask_param: 10
     low_freq_range: 20
     high_freq_range: 20
-    time_warp_w: 80
   deep_spec_augment:
     apply: False
     time_mask_param: 20
