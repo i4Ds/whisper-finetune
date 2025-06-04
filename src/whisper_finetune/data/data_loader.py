@@ -13,7 +13,7 @@ from torch_audiomentations import AddColoredNoise, HighPassFilter, LowPassFilter
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
 
-from whisper_finetune.data.utils import TimeWarpAugmenter, pad_or_trim
+from whisper_finetune.data.utils import TimeWarpAugmenter, ExtremeFrequencyMasking, pad_or_trim
 
 
 @dataclass
@@ -42,6 +42,8 @@ class AudioDataset(Dataset):
         no_timestamps_rate: float = 0.5,
         spec_augment: bool = False,
         spec_augment_params: Optional[dict] = None,
+        extremes_spec_augment: bool = False,
+        extremes_spec_augment_params: Optional[dict] = None,
         audio_aug: bool = False,
         audio_augment_params: Optional[dict] = None,
     ) -> None:
@@ -59,6 +61,8 @@ class AudioDataset(Dataset):
             no_timestamps_rate (float, optional): The rate at which to use no timestamps. Defaults to 0.5.
             spec_augment (bool, optional): Whether to use spectrogram augmentation. Defaults to False.
             spec_augment_params (Optional[dict], optional): The parameters for spectrogram augmentation. Defaults to None.
+            extremes_spec_augment (bool, optional): Whether to apply masking on extreme frequency ranges. Defaults to False.
+            extremes_spec_augment_params (Optional[dict], optional): Parameters for extreme frequency masking. Defaults to None.
             audio_aug (bool, optional): Whether to use audio augmentation, such as noise, high-pass filter, and low-pass filter. Defaults to False.
             audio_augment_params (Optional[dict], optional): The parameters for audio augmentation. Defaults to None.
 
@@ -78,12 +82,26 @@ class AudioDataset(Dataset):
         self.prompt_use_rate = prompt_use_rate
         self.no_timestamps_rate = no_timestamps_rate
         self.spec_augment = spec_augment
+        self.extremes_spec_augment = extremes_spec_augment
         self.audio_aug = audio_aug
 
         if spec_augment:
             self.time_masking = T.TimeMasking(time_mask_param=spec_augment_params["time_mask_param"])
             self.freq_masking = T.FrequencyMasking(freq_mask_param=spec_augment_params["freq_mask_param"])
             self.time_warping = TimeWarpAugmenter(W=spec_augment_params["time_warp_w"])
+        else:
+            self.time_masking = None
+            self.freq_masking = None
+            self.time_warping = None
+
+        if extremes_spec_augment:
+            self.extreme_freq_masking = ExtremeFrequencyMasking(
+                freq_mask_param=extremes_spec_augment_params["freq_mask_param"],
+                low_freq_range=extremes_spec_augment_params.get("low_freq_range", 20),
+                high_freq_range=extremes_spec_augment_params.get("high_freq_range", 20),
+            )
+        else:
+            self.extreme_freq_masking = None
         if self.audio_aug:
             self.acn = AddColoredNoise(**audio_augment_params["acn"])
             self.lpf = LowPassFilter(**audio_augment_params["lpf"])
@@ -204,6 +222,9 @@ class AudioDataset(Dataset):
             mel = self.time_masking(mel)
             mel = self.freq_masking(mel)
 
+        if self.extreme_freq_masking:
+            mel = self.extreme_freq_masking(mel)
+
         return mel
 
     def _construct_decoder_output(
@@ -278,6 +299,8 @@ def get_dataloader(
     num_workers: int = 0,
     spec_augment: bool = False,
     spec_augment_params: Optional[dict] = None,
+    extremes_spec_augment: bool = False,
+    extremes_spec_augment_params: Optional[dict] = None,
     audio_aug: bool = False,
     audio_augment_params: Optional[dict] = None,
 ) -> DataLoader:
@@ -293,6 +316,8 @@ def get_dataloader(
         no_timestamps_rate=no_timestamps_rate,
         spec_augment=spec_augment,
         spec_augment_params=spec_augment_params,
+        extremes_spec_augment=extremes_spec_augment,
+        extremes_spec_augment_params=extremes_spec_augment_params,
         audio_aug=audio_aug,
         audio_augment_params=audio_augment_params,
     )

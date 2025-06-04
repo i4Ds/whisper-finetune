@@ -114,6 +114,46 @@ class TimeWarpAugmenter:
         return torch.nn.functional.grid_sample(specs, grid, align_corners=True).squeeze(0)  # Remove dim for channels
 
 
+class ExtremeFrequencyMasking:
+    """Apply frequency masking only on the low or high end of the spectrum."""
+
+    def __init__(self, freq_mask_param: int, low_freq_range: int = 20, high_freq_range: int = 20):
+        """Create the transform.
+
+        Args:
+            freq_mask_param: Maximum width of the frequency mask.
+            low_freq_range: Number of lowest bins eligible for masking.
+            high_freq_range: Number of highest bins eligible for masking.
+        """
+        self.freq_mask_param = freq_mask_param
+        self.low_freq_range = low_freq_range
+        self.high_freq_range = high_freq_range
+
+    def __call__(self, specs: torch.Tensor) -> torch.Tensor:
+        if not torch.is_tensor(specs):
+            specs = torch.tensor(specs)
+        single = False
+        if specs.dim() == 2:
+            specs = specs.unsqueeze(0)
+            single = True
+
+        batch, n_mels, n_frames = specs.shape
+
+        for b in range(batch):
+            mask_len = int(torch.randint(0, self.freq_mask_param + 1, (1,)))
+            if torch.rand(1).item() < 0.5:
+                max_start = max(1, self.low_freq_range - mask_len + 1)
+                f0 = int(torch.randint(0, max_start, (1,)))
+            else:
+                start_min = max(n_mels - self.high_freq_range - mask_len, 0)
+                f0 = int(torch.randint(start_min, n_mels - mask_len + 1, (1,)))
+            specs[b, f0 : f0 + mask_len, :] = 0
+
+        if single:
+            specs = specs.squeeze(0)
+        return specs
+
+
 # Function to process individual datasets
 def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col):
     """
