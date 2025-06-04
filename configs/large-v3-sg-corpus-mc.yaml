@@ -32,7 +32,7 @@ training:
   train_only_decoder: False # If true, disable the grads of the encoder
   train_only_encoder: False # If true, disable the grads of the decoder
   max_grad_norm: 1.0
-  stochastic_depth: 0.0 # Stochastic depth, used in whisper. See https://arxiv.org/abs/1603.09382
+  stochastic_depth: 0.1 # Stochastic depth, used in whisper. See https://arxiv.org/abs/1603.09382
   epochs: 2
   eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
@@ -50,9 +50,14 @@ augmentation: # Data augmentations, see the whisper paper for more details
     freq_mask_param: 27
     time_warp_w: 80
   deep_spec_augment:
-    apply: False
+    apply: True
     time_mask_param: 20
     freq_mask_param: 10
+  extremes_spec_augment:
+    apply: True
+    freq_mask_param: 10
+    low_freq_range: 20
+    high_freq_range: 20
   audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).
     apply: False
     lpf: # Low pass filter
