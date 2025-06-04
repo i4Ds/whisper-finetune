@@ -208,6 +208,8 @@ def main(config):
     whisper_model.to("cuda")
 
     if config["augmentation"].get("deep_spec_augment", {}).get("apply", False):
+        # SpecAugment applied inside the encoder as in SpecAugment++
+        # https://arxiv.org/abs/2103.16858
         dconf = config["augmentation"]["deep_spec_augment"]
         register_deep_spec_augment_hooks(
             whisper_model,
@@ -254,6 +256,8 @@ def main(config):
         num_workers=min(os.cpu_count(), 8),
         spec_augment=config["augmentation"]["spec_augment"]["apply"],
         spec_augment_params=config["augmentation"]["spec_augment"],
+        extremes_spec_augment=config["augmentation"]["extremes_spec_augment"]["apply"],
+        extremes_spec_augment_params=config["augmentation"]["extremes_spec_augment"],
         audio_aug=config["augmentation"]["audio_augment"]["apply"],
         audio_augment_params=config["augmentation"]["audio_augment"],
     )
@@ -267,6 +271,8 @@ def main(config):
         no_timestamps_rate=0,
         num_workers=min(os.cpu_count(), 8),
         spec_augment=False,
+        extremes_spec_augment=False,
+        extremes_spec_augment_params=None,
         audio_aug=False,
     )
 
