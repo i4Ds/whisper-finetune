@@ -96,8 +96,8 @@ class AudioDataset(Dataset):
 
         if extremes_spec_augment:
             self.extreme_freq_masking = ExtremesFrequencyMasking(
-                low_freq_range=extremes_spec_augment_params.get("low_freq_range", 10),
-                high_freq_range=extremes_spec_augment_params.get("high_freq_range", 10),
+                low_freq_range=extremes_spec_augment_params['low_freq_range'], 
+                high_freq_range=extremes_spec_augment_params['high_freq_range']
             )
         else:
             self.extreme_freq_masking = None
