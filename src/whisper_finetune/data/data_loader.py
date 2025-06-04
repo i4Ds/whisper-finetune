@@ -13,7 +13,7 @@ from torch_audiomentations import AddColoredNoise, HighPassFilter, LowPassFilter
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
 
-from whisper_finetune.data.utils import TimeWarpAugmenter, ExtremeFrequencyMasking, pad_or_trim
+from whisper_finetune.data.utils import TimeWarpAugmenter, ExtremesFrequencyMasking, pad_or_trim
 
 
 @dataclass
@@ -62,7 +62,7 @@ class AudioDataset(Dataset):
             spec_augment (bool, optional): Whether to use spectrogram augmentation. Defaults to False.
             spec_augment_params (Optional[dict], optional): The parameters for spectrogram augmentation. Defaults to None.
             extremes_spec_augment (bool, optional): Whether to apply masking on extreme frequency ranges. Defaults to False.
-            extremes_spec_augment_params (Optional[dict], optional): Parameters for extreme frequency masking. Defaults to None.
+            extremes_spec_augment_params (Optional[dict], optional): Parameters for extreme frequency masking (``low_freq_range`` and ``high_freq_range``). Defaults to None.
             audio_aug (bool, optional): Whether to use audio augmentation, such as noise, high-pass filter, and low-pass filter. Defaults to False.
             audio_augment_params (Optional[dict], optional): The parameters for audio augmentation. Defaults to None.
 
@@ -95,10 +95,9 @@ class AudioDataset(Dataset):
             self.time_warping = None
 
         if extremes_spec_augment:
-            self.extreme_freq_masking = ExtremeFrequencyMasking(
-                freq_mask_param=extremes_spec_augment_params["freq_mask_param"],
-                low_freq_range=extremes_spec_augment_params.get("low_freq_range", 20),
-                high_freq_range=extremes_spec_augment_params.get("high_freq_range", 20),
+            self.extreme_freq_masking = ExtremesFrequencyMasking(
+                low_freq_range=extremes_spec_augment_params.get("low_freq_range", 10),
+                high_freq_range=extremes_spec_augment_params.get("high_freq_range", 10),
             )
         else:
             self.extreme_freq_masking = None
