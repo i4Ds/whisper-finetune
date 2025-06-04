@@ -12,6 +12,7 @@ import wandb
 from torch import Tensor
 from torch.utils.checkpoint import checkpoint
 from torch.utils.data import DataLoader
+import torchaudio.transforms as T
 from tqdm import tqdm
 from whisper import _ALIGNMENT_HEADS, _MODELS, _download, available_models
 from whisper.model import AudioEncoder, TextDecoder, Whisper
@@ -313,3 +314,35 @@ def load_model_and_set_heads(
         model.set_alignment_heads(alignment_heads)
 
     return model.to(device)
+
+
+def register_deep_spec_augment_hooks(
+    model: Whisper,
+    time_mask_param: int,
+    freq_mask_param: int,
+    layer_indices: Optional[list] = None,
+) -> None:
+    """Register SpecAugment hooks on encoder layers.
+
+    If ``layer_indices`` is ``None``, hooks are attached to all encoder blocks.
+    """
+
+    time_mask = T.TimeMasking(time_mask_param=time_mask_param)
+    freq_mask = T.FrequencyMasking(freq_mask_param=freq_mask_param)
+
+    def _hook(module, input, output):
+        if module.training:
+            x = output.permute(0, 2, 1)
+            x = time_mask(x)
+            x = freq_mask(x)
+            return x.permute(0, 2, 1)
+        return output
+
+    if layer_indices is None:
+        layer_indices = range(len(model.encoder.blocks))
+
+    for idx in layer_indices:
+        if idx < len(model.encoder.blocks):
+            model.encoder.blocks[idx].register_forward_hook(_hook)
+        else:
+            raise ValueError(f"Layer index {idx} out of range")
