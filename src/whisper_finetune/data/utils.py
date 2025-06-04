@@ -114,22 +114,26 @@ class TimeWarpAugmenter:
         return torch.nn.functional.grid_sample(specs, grid, align_corners=True).squeeze(0)  # Remove dim for channels
 
 
-class ExtremeFrequencyMasking:
-    """Apply frequency masking only on the low or high end of the spectrum."""
+class ExtremesFrequencyMasking:
+    """Mask frequency bins starting from both spectrum extremes."""
 
-    def __init__(self, freq_mask_param: int, low_freq_range: int = 20, high_freq_range: int = 20):
+    def __init__(self, low_freq_range: int = 10, high_freq_range: int = 10):
         """Create the transform.
 
         Args:
-            freq_mask_param: Maximum width of the frequency mask.
-            low_freq_range: Number of lowest bins eligible for masking.
-            high_freq_range: Number of highest bins eligible for masking.
+            low_freq_range: Maximum number of lowest bins eligible for masking.
+            high_freq_range: Maximum number of highest bins eligible for masking.
         """
-        self.freq_mask_param = freq_mask_param
         self.low_freq_range = low_freq_range
         self.high_freq_range = high_freq_range
 
     def __call__(self, specs: torch.Tensor) -> torch.Tensor:
+        """Apply the masking.
+
+        A single random ratio is drawn for each sample. The same ratio is used
+        for both the low and high frequency ranges. Masking always starts from
+        the edges of the spectrogram.
+        """
         if not torch.is_tensor(specs):
             specs = torch.tensor(specs)
         single = False
@@ -137,17 +141,20 @@ class ExtremeFrequencyMasking:
             specs = specs.unsqueeze(0)
             single = True
 
-        batch, n_mels, n_frames = specs.shape
+        batch, n_mels, _ = specs.shape
 
         for b in range(batch):
-            mask_len = int(torch.randint(0, self.freq_mask_param + 1, (1,)))
-            if torch.rand(1).item() < 0.5:
-                max_start = max(1, self.low_freq_range - mask_len + 1)
-                f0 = int(torch.randint(0, max_start, (1,)))
-            else:
-                start_min = max(n_mels - self.high_freq_range - mask_len, 0)
-                f0 = int(torch.randint(start_min, n_mels - mask_len + 1, (1,)))
-            specs[b, f0 : f0 + mask_len, :] = 0
+            r = torch.rand(1).item()
+
+            low_mask_len = int(round(r * self.low_freq_range))
+            if low_mask_len > 0:
+                max_end = min(low_mask_len, n_mels)
+                specs[b, :max_end, :] = 0
+
+            high_mask_len = int(round(r * self.high_freq_range))
+            if high_mask_len > 0:
+                start = max(n_mels - high_mask_len, 0)
+                specs[b, start:, :] = 0
 
         if single:
             specs = specs.squeeze(0)
