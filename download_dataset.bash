@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the datasets to download
-DATASET_NAMES=("i4ds/sg_corp_train_no_overlap_no_speaker_ret" "i4ds/sg_corp_train_neg_overlap_no_speaker_ret")
+DATASET_NAMES=("i4ds/sg_corp_train_no_overlap_speaker_ret" "i4ds/srg-full-train-val-v2" "i4ds/mozilla-cv-13-long-text-de")
 
 # Create a virtual environment in the current directory
 python3 -m venv .hu_ds_download
