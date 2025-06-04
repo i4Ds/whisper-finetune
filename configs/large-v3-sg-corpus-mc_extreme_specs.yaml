@@ -47,16 +47,16 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     p: 1.0
-    freq_mask_param: 43
+    freq_mask_param: 27
     time_warp_w: 80
   deep_spec_augment:
     apply: False
     time_mask_param: 20
     freq_mask_param: 10
   extremes_spec_augment:
-    apply: False
+    apply: True
     low_freq_range: 10
-    high_freq_range: 10
+    high_freq_range: 40
   audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).
     apply: False
     lpf: # Low pass filter

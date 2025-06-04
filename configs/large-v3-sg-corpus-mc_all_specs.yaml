@@ -13,22 +13,22 @@ dataset:
   max_prompt_length: 223 # The maximum number of tokens to use for the prompt (Fixed by whisper).
   prompt_use_rate: 0.5 # How often to use the prompt.
   no_timestamp_rate: 0.5 # How often to use no timestamps.
-  batch_size: 16
-  batch_size_eval: 16
+  batch_size: 32
+  batch_size_eval: 32
 lr_scheduler:
   type: linear
-  warmup_steps: 8 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
+  warmup_steps: 32 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
 optimizer:
   type: adamw
   8bit: True
   params:
-    lr: 1.0e-4
+    lr: 1.0e-3
     weight_decay: 0.1
     betas: [0.9, 0.98]
     eps: 1.0e-6
     amsgrad: False
 training:
-  accum_grad_steps: 16
+  accum_grad_steps: 8
   train_only_decoder: False # If true, disable the grads of the encoder
   train_only_encoder: False # If true, disable the grads of the decoder
   max_grad_norm: 1.0
@@ -47,16 +47,16 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     p: 1.0
-    freq_mask_param: 43
+    freq_mask_param: 27
     time_warp_w: 80
   deep_spec_augment:
-    apply: False
-    time_mask_param: 20
-    freq_mask_param: 10
+    apply: True
+    time_mask_param: 100
+    freq_mask_param: 27
   extremes_spec_augment:
-    apply: False
+    apply: True
     low_freq_range: 10
-    high_freq_range: 10
+    high_freq_range: 40
   audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).
     apply: False
     lpf: # Low pass filter
