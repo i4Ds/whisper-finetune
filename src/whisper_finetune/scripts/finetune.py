@@ -21,6 +21,7 @@ from whisper_finetune.model.model_utils import (
     evaluate,
     infinite_iter,
     load_model_and_set_heads,
+    register_deep_spec_augment_hooks,
     save_model,
     train_step,
 )
@@ -80,7 +81,9 @@ def main_loop(
         logging.info(f"train\t{step}\t{train_loss}\t{scheduler.get_last_lr()[0]}")
         wandb.log({"Learning rate": scheduler.get_last_lr()[0]})
         wandb.log({"Train loss": train_loss})  # Log training loss
-        assert train_loss < t_config['max_train_loss'], f"Train loss is above {t_config['max_train_loss']}, the loss is unable to converge."
+        assert (
+            train_loss < t_config["max_train_loss"]
+        ), f"Train loss is above {t_config['max_train_loss']}, the loss is unable to converge."
 
         if (step % t_config["val_steps"]) == 0 or step == t_config["train_steps"] + 1:
             eval_loss, eval_wer = evaluate(model, dev_loader, t_config)
@@ -203,6 +206,14 @@ def main(config):
         disable_all_grads(whisper_model.decoder)
 
     whisper_model.to("cuda")
+
+    if config["augmentation"].get("deep_spec_augment", {}).get("apply", False):
+        dconf = config["augmentation"]["deep_spec_augment"]
+        register_deep_spec_augment_hooks(
+            whisper_model,
+            time_mask_param=dconf.get("time_mask_param", 20),
+            freq_mask_param=dconf.get("freq_mask_param", 10),
+        )
 
     # Get datasets
     ds_config = config["dataset"]
