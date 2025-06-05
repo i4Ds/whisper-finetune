@@ -322,19 +322,16 @@ def register_deep_spec_augment_hooks(
     freq_mask_param: int,
     layer_indices: Optional[list] = None,
 ) -> None:
-    """Register SpecAugment hooks on encoder layers.
-
-    If ``layer_indices`` is ``None``, hooks are attached to all encoder blocks.
-    """
-
     time_mask = T.TimeMasking(time_mask_param=time_mask_param)
     freq_mask = T.FrequencyMasking(freq_mask_param=freq_mask_param)
 
-    def _hook(module, input, output):
+    def _norm_hook(module, input, output):
         if module.training:
+            # output here is normalized: shape (batch, seq_len, embed_dim)
+            # Convert to (batch, embed_dim, seq_len) for masking
             x = output.permute(0, 2, 1)
-            x = time_mask(x)
-            x = freq_mask(x)
+            x = time_mask(x)        # time masking on normalized features
+            x = freq_mask(x)        # frequency masking on normalized features
             return x.permute(0, 2, 1)
         return output
 
@@ -342,7 +339,9 @@ def register_deep_spec_augment_hooks(
         layer_indices = range(len(model.encoder.blocks))
 
     for idx in layer_indices:
-        if idx < len(model.encoder.blocks):
-            model.encoder.blocks[idx].register_forward_hook(_hook)
+        if idx < len(model.encoder.blocks) - 1: # To skip the last layer; to allow the model to recover.
+            # Register hook to self_attn_layer_norm of each block
+            layer_norm = model.encoder.blocks[idx].self_attn_layer_norm
+            layer_norm.register_forward_hook(_norm_hook)
         else:
             raise ValueError(f"Layer index {idx} out of range")

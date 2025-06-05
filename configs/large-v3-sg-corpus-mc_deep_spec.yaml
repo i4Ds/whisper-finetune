@@ -53,10 +53,11 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     freq_mask_param: 27
+    layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.
   extremes_spec_augment:
     apply: False
     low_freq_range: 10
-    high_freq_range: 40
+    high_freq_range: 20
   audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).
     apply: False
     lpf: # Low pass filter
