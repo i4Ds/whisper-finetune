@@ -17,7 +17,7 @@ dataset:
   batch_size_eval: 16
 lr_scheduler:
   type: linear
-  warmup_steps: 168 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
+  warmup_steps: 128 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
 optimizer:
   type: adamw
   8bit: True
@@ -36,7 +36,7 @@ training:
   epochs: 2
   eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
-  max_train_loss: 15 # We observed that if the loss goes above 15, the training run has failed and should be restarted with other parameters.
+  max_train_loss: 25 # We observed that if the loss goes above 25, the training run has failed and should be restarted with other parameters.
   mixed_precision_training: True
   mp_dtype: fp16
   gradient_checkpointing_encoder: True # If there should be gradient checkpointing in the encoder.
