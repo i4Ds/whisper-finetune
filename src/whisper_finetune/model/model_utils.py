@@ -336,12 +336,19 @@ def register_deep_spec_augment_hooks(
         return output
 
     if layer_indices is None:
-        layer_indices = range(len(model.encoder.blocks))
+        # Skip the final encoder block to allow the model to recover from the
+        # augmentation. ``range`` would include the last index, so we remove it
+        # here to avoid raising an error below.
+        layer_indices = range(len(model.encoder.blocks) - 1)
 
     for idx in layer_indices:
-        if idx < len(model.encoder.blocks) - 1: # To skip the last layer; to allow the model to recover.
-            # Register hook to self_attn_layer_norm of each block
-            layer_norm = model.encoder.blocks[idx].self_attn_layer_norm
-            layer_norm.register_forward_hook(_norm_hook)
-        else:
+        if idx >= len(model.encoder.blocks):
             raise ValueError(f"Layer index {idx} out of range")
+
+        if idx == len(model.encoder.blocks) - 1:
+            # Skip the last layer entirely
+            continue
+
+        # Register hook to the attention layer norm of each block
+        layer_norm = model.encoder.blocks[idx].attn_ln
+        layer_norm.register_forward_hook(_norm_hook)
