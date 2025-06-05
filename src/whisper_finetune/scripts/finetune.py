@@ -213,8 +213,9 @@ def main(config):
         dconf = config["augmentation"]["deep_spec_augment"]
         register_deep_spec_augment_hooks(
             whisper_model,
-            time_mask_param=dconf.get("time_mask_param", 20),
-            freq_mask_param=dconf.get("freq_mask_param", 10),
+            time_mask_param=dconf['time_mask_param'],
+            freq_mask_param=dconf['freq_mask_param'],
+            layer_indices=dconf['layer_indices']
         )
 
     # Get datasets
