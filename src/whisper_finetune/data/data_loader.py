@@ -267,6 +267,11 @@ class AudioDataset(Dataset):
         audio_arr = np.pad(audio_arr, (0, N_SAMPLES - audio_arr.shape[0]), "constant")
 
         mel = self._calculate_mel(audio_arr, next_partial_segment_start, no_timestamps)
+        if index == 0:
+            print(f"Mel shape: {mel.shape}")
+            print(f"Decoder input: {decoder_input}")
+            print(f"Decoder output: {decoder_output}")
+            print(f"Mel Spectrogram stats: mean={mel.mean()}, std={mel.std()}, min={mel.min()}, max={mel.max()}. N NANs: {torch.isnan(mel).sum()}")
 
         return (
             mel,
