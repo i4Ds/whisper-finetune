@@ -34,7 +34,7 @@ training:
   max_grad_norm: 1.0
   stochastic_depth: 0.1 # Stochastic depth, used in whisper. See https://arxiv.org/abs/1603.09382
   epochs: 2
-  eval_steps: 0.25 # % of each epoch to do validation.
+  eval_steps: 0.1 # % of each epoch to do validation.
   save_all_checkpoints: False
   max_train_loss: 25 # We observed that if the loss goes above 25, the training run has failed and should be restarted with other parameters.
   mixed_precision_training: True
