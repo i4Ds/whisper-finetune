@@ -5,7 +5,7 @@ torchaudio==2.1.2
 librosa==0.10.1
 soundfile==0.12.1; platform_system=="Windows"
 tiktoken @ git+https://github.com/swiss-german-speech-to-text/tiktoken@main
-transformers==4.50.0
+transformers==4.37.2 # Should be updated SOON but there are some issues with the latest version: https://github.com/huggingface/transformers/issues/38639
 wandb==0.16.2
 evaluate==0.4.1
 jiwer==3.0.3
