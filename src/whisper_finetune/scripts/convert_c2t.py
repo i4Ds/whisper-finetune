@@ -4,9 +4,7 @@ import shutil
 from pathlib import Path
 
 from ctranslate2.converters import TransformersConverter
-from transformers.models.whisper.convert_openai_to_hf import (
-    convert_openai_whisper_to_tfms,
-)
+from whisper_finetune.scripts.convert_openai_to_hf import convert_openai_whisper_to_tfms
 
 
 def parse_args() -> argparse.Namespace:
