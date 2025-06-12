@@ -201,7 +201,7 @@ class AudioDataset(Dataset):
     ) -> torch.Tensor:
         if self.audio_aug:
             audio_array = torch.tensor(audio_array).unsqueeze(0).unsqueeze(0)
-            audio_array = self.aud_augment(audio_array)
+            audio_array = self.aud_augment(sample  = audio_array, sample_rate = 16000)
             audio_array = audio_array.squeeze(0).squeeze(0).numpy()
         mel = log_mel_spectrogram(audio_array, n_mels=self.n_mels, device=self.device)
         if no_timestamps and next_partial_segment_start is not None:
