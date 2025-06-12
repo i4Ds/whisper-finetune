@@ -260,7 +260,6 @@ def main(config):
         extremes_spec_augment=config["augmentation"]["extremes_spec_augment"]["apply"],
         extremes_spec_augment_params=config["augmentation"]["extremes_spec_augment"],
         audio_aug=config["augmentation"]["audio_augment"]["apply"],
-        audio_augment_params=config["augmentation"]["audio_augment"],
     )
     val_loader = get_dataloader(
         hu_dataset=val_dataset,

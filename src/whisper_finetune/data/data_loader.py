@@ -9,12 +9,11 @@ from datasets import Dataset as HU_Dataset
 from numpy import ndarray
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
-from torch_audiomentations import AddColoredNoise, HighPassFilter, LowPassFilter
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
 
 from whisper_finetune.data.utils import TimeWarpAugmenter, ExtremesFrequencyMasking, pad_or_trim
-
+from whisper_finetune.model.augment import get_audio_augments_baseline
 
 @dataclass
 class Record:
@@ -45,7 +44,6 @@ class AudioDataset(Dataset):
         extremes_spec_augment: bool = False,
         extremes_spec_augment_params: Optional[dict] = None,
         audio_aug: bool = False,
-        audio_augment_params: Optional[dict] = None,
     ) -> None:
         """
         Initializes the class with the given parameters.
@@ -64,7 +62,6 @@ class AudioDataset(Dataset):
             extremes_spec_augment (bool, optional): Whether to apply masking on extreme frequency ranges. Defaults to False.
             extremes_spec_augment_params (Optional[dict], optional): Parameters for extreme frequency masking (``low_freq_range`` and ``high_freq_range``). Defaults to None.
             audio_aug (bool, optional): Whether to use audio augmentation, such as noise, high-pass filter, and low-pass filter. Defaults to False.
-            audio_augment_params (Optional[dict], optional): The parameters for audio augmentation. Defaults to None.
 
         Returns:
             None
@@ -102,9 +99,7 @@ class AudioDataset(Dataset):
         else:
             self.extreme_freq_masking = None
         if self.audio_aug:
-            self.acn = AddColoredNoise(**audio_augment_params["acn"])
-            self.lpf = LowPassFilter(**audio_augment_params["lpf"])
-            self.hpf = HighPassFilter(**audio_augment_params["hpf"])
+            self.aud_augment = get_audio_augments_baseline()
 
         self.num_frames_per_second = N_FRAMES / CHUNK_LENGTH
         # timestamps tokens are from <|0.00|> to <|30.00|> with a step of 0.02
@@ -206,9 +201,7 @@ class AudioDataset(Dataset):
     ) -> torch.Tensor:
         if self.audio_aug:
             audio_array = torch.tensor(audio_array).unsqueeze(0).unsqueeze(0)
-            audio_array = self.acn(audio_array)
-            audio_array = self.lpf(audio_array)
-            audio_array = self.hpf(audio_array)
+            audio_array = self.aud_augment(audio_array)
             audio_array = audio_array.squeeze(0).squeeze(0).numpy()
         mel = log_mel_spectrogram(audio_array, n_mels=self.n_mels, device=self.device)
         if no_timestamps and next_partial_segment_start is not None:
@@ -306,7 +299,6 @@ def get_dataloader(
     extremes_spec_augment: bool = False,
     extremes_spec_augment_params: Optional[dict] = None,
     audio_aug: bool = False,
-    audio_augment_params: Optional[dict] = None,
 ) -> DataLoader:
     print(f"Found {len(hu_dataset)} records in the dataset.")
     dataset = AudioDataset(
@@ -323,7 +315,6 @@ def get_dataloader(
         extremes_spec_augment=extremes_spec_augment,
         extremes_spec_augment_params=extremes_spec_augment_params,
         audio_aug=audio_aug,
-        audio_augment_params=audio_augment_params,
     )
     return DataLoader(
         dataset,
