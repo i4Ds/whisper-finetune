@@ -83,12 +83,18 @@ def train_step(
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
 
     if scaler:
-        scaler.step(optimizer)
-        lr_scheduler.step()
+        # https://discuss.pytorch.org/t/optimizer-step-before-lr-scheduler-step-error-using-gradscaler/92930/8
+        scale = scaler.get_scale()
+        wandb.log({"scale": scale})
         scaler.update()
+        scaler.step(optimizer)
+        if scale <= scaler.get_scale(): # If the scale has not changed, step the scheduler
+            lr_scheduler.step()
     else:
         optimizer.step()
         lr_scheduler.step()
+        
+        
 
     optimizer.zero_grad()
 

@@ -11,3 +11,5 @@ evaluate==0.4.1
 jiwer==3.0.3
 minlora @ git+https://github.com/cccntu/minLoRA.git@main
 audiomentations==0.41.0
+pyloudnorm==0.1.1
+numpy<2.0.0
