@@ -9,5 +9,5 @@ transformers==4.37.2 # Should be updated SOON but there are some issues with the
 wandb==0.16.2
 evaluate==0.4.1
 jiwer==3.0.3
-torch-audiomentations==0.11.1
 minlora @ git+https://github.com/cccntu/minLoRA.git@main
+audiomentations==0.41.0
