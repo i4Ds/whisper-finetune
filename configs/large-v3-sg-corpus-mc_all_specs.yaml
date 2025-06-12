@@ -47,7 +47,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     p: 1.0
-    freq_mask_param: 27
+    freq_mask_param: 43
     time_warp_w: 80
   deep_spec_augment:
     apply: True
@@ -55,28 +55,10 @@ augmentation: # Data augmentations, see the whisper paper for more details
     freq_mask_param: 27
     layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.
   extremes_spec_augment:
-    apply: True
+    apply: False # Leads to unstable training.
     low_freq_range: 10
     high_freq_range: 20
-  audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).
+  audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).  See: https://github.com/daekeun-ml/azure-genai-utils/blob/main/azure_genai_utils/stt/augment.py
     apply: False
-    lpf: # Low pass filter
-      p: 0.1
-      sample_rate: 16000
-      target_rate: 16000
-      min_cutoff_freq: 3340
-      max_cutoff_freq: 7500
-    hpf: # High pass filter
-      p: 0.1
-      sample_rate: 16000
-      target_rate: 16000
-      min_cutoff_freq: 20
-      max_cutoff_freq: 128
-    acn:  # Colored noise
-      p: 0.0
-      sample_rate: 16000
-      target_rate: 16000
-      min_snr_in_db: 25
-      max_snr_in_db: 99
 seed: 123
 save_dir: output
