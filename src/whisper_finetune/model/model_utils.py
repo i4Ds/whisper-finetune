@@ -88,7 +88,7 @@ def train_step(
         wandb.log({"scale": scale})
         scaler.update()
         scaler.step(optimizer)
-        if scale <= scaler.get_scale(): # If the scale has not changed, step the scheduler
+        if True: # scale <= scaler.get_scale(): # If the scale has not changed, step the scheduler
             lr_scheduler.step()
     else:
         optimizer.step()
