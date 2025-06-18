@@ -3,8 +3,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --ntasks=1
 #SBATCH --mem-per-cpu=8G
-#SBATCH --time=65:00:00
-#SBATCH --partition=a100      # or titanx
+#SBATCH --time=25:00:00
+#SBATCH --partition=a100-80g   # or titanx
 #SBATCH --gres=gpu:1
 #SBATCH --qos=gpu1week
 #SBATCH --mail-type=END,FAIL,TIME_LIMIT
