@@ -11,9 +11,10 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
+from audiomentations import Compose
 
 from whisper_finetune.data.utils import TimeWarpAugmenter, ExtremesFrequencyMasking, pad_or_trim
-from whisper_finetune.model.augment import get_audio_augments_baseline
+from whisper_finetune.model.augment import get_audio_augments_baseline, get_audio_augments_office
 
 @dataclass
 class Record:
@@ -99,7 +100,9 @@ class AudioDataset(Dataset):
         else:
             self.extreme_freq_masking = None
         if self.audio_aug:
-            self.aud_augment = get_audio_augments_baseline()
+            base_augment = get_audio_augments_baseline()
+            office_augment = get_audio_augments_office()
+            self.audio_aug = Compose([base_augment, office_augment], p=1.0)
 
         self.num_frames_per_second = N_FRAMES / CHUNK_LENGTH
         # timestamps tokens are from <|0.00|> to <|30.00|> with a step of 0.02
