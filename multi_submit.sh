@@ -6,9 +6,8 @@
 # A Bash array of config paths you care about:
 configs=(
   "configs/large-v3-sg-corpus-mc_all_specs.yaml"
-  "configs/large-v3-sg-corpus-mc_deep_spec.yaml"
-  "configs/large-v3-sg-corpus-mc_extreme_specs.yaml"
-  "configs/large-v3-sg-corpus-mc.yaml"
+  "configs/large-v3-sg-corpus-mc_azure_aug.yaml"
+  "configs/large-v3-sg-corpus-mc_all_augm.yaml"
 )
 
 for cfg in "${configs[@]}"; do

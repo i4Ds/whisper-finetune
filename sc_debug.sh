@@ -14,4 +14,4 @@ conda activate whisper_finetune
 # Get env variables
 export $(cat .env | xargs)
 
-python src/whisper_finetune/scripts/finetune.py --config configs/large-v3-sg-corpus-mc_azure_aug.yaml
+python src/whisper_finetune/scripts/finetune.py --config configs/DEBUG.yaml

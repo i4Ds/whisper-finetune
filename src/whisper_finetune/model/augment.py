@@ -15,10 +15,8 @@ from audiomentations import (
     LowShelfFilter,
     HighPassFilter,
     HighShelfFilter,
-    TimeStretch,
     PitchShift,
     Shift,
-    AdjustDuration,
     ClippingDistortion,
     AirAbsorption,
     PeakingFilter,
@@ -32,13 +30,13 @@ def get_audio_augments_baseline():
             OneOf(
                 [
                     AddBackgroundNoise(
-                        sounds_path=os.path.join(current_dir, "bg-noise.mp3"),
+                        sounds_path=os.path.join(current_dir, "bg_noise"),
                         noise_rms="absolute",
                         min_absolute_rms_db=-30,
                         max_absolute_rms_db=-10,
                     ),
                     AddBackgroundNoise(
-                        sounds_path=os.path.join(current_dir, "bg-noise.mp3"),
+                        sounds_path=os.path.join(current_dir, "bg_noise"),
                         min_snr_db=2,
                         max_snr_db=4,
                     ),
@@ -72,20 +70,6 @@ def get_audio_augments_baseline():
                 [
                     Gain(min_gain_db=-6.0, max_gain_db=6.0, p=1.0),
                     GainTransition(p=1.0),
-                    AdjustDuration(duration_seconds=5.0, p=0.5),
-                    AdjustDuration(
-                        duration_seconds=5.0,
-                        padding_position="start",
-                        padding_mode="wrap",
-                        p=0.5,
-                    ),
-                    AdjustDuration(
-                        duration_seconds=5.0,
-                        padding_position="start",
-                        padding_mode="reflect",
-                        p=0.5,
-                    ),
-                    TimeStretch(min_rate=0.8, max_rate=1.25, p=0.5),
                     PitchShift(min_semitones=-4, max_semitones=4, p=0.5),
                     Shift(p=0.5),
                 ],
