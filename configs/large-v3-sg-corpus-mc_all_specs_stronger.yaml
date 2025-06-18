@@ -47,7 +47,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     p: 1.0
-    freq_mask_param: 27
+    freq_mask_param: 43
     time_warp_w: 80
   deep_spec_augment:
     apply: True
