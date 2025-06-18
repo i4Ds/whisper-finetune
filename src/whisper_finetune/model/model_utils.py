@@ -5,7 +5,6 @@ from dataclasses import asdict
 from functools import partial
 from typing import Callable, Iterator, Optional, Union
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 import wandb

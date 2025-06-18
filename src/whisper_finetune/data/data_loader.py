@@ -102,7 +102,7 @@ class AudioDataset(Dataset):
         if self.audio_aug:
             base_augment = get_audio_augments_baseline()
             office_augment = get_audio_augments_office()
-            self.audio_aug = Compose([base_augment, office_augment], p=1.0)
+            self.aud_augment = Compose([base_augment, office_augment], p=1.0)
 
         self.num_frames_per_second = N_FRAMES / CHUNK_LENGTH
         # timestamps tokens are from <|0.00|> to <|30.00|> with a step of 0.02
