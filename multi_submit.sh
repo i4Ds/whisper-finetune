@@ -9,6 +9,7 @@ configs=(
   "configs/large-v3-sg-corpus-mc_all_specs_stronger.yaml"
   "configs/large-v3-sg-corpus-mc_all_specs.yaml"
   "configs/large-v3-sg-corpus-mc_azure_aug.yaml"
+  "configs/large-v3-sg-corpus-mc.yaml"
 )
 
 for cfg in "${configs[@]}"; do

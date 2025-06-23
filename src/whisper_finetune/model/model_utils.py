@@ -83,18 +83,18 @@ def train_step(
 
     if scaler:
         # https://discuss.pytorch.org/t/optimizer-step-before-lr-scheduler-step-error-using-gradscaler/92930/8
-        scale = scaler.get_scale()
-        wandb.log({"scale": scale})
-        scaler.update()
+        scale_before = scaler.get_scale()
+        wandb.log({"scale": scale_before})
         scaler.step(optimizer)
-        if True: # scale <= scaler.get_scale(): # If the scale has not changed, step the scheduler
+        if scale_before <= scaler.get_scale(): # If the scale has stayed the same or increased (which is good, means it's stable), then step the scheduler.
+            # If this is not the case, scaler.step(optimizer) also didn't happen.
             lr_scheduler.step()
+        scaler.update()
     else:
         optimizer.step()
         lr_scheduler.step()
         
-        
-
+    
     optimizer.zero_grad()
 
     return total_loss
