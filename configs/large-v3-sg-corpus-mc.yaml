@@ -50,7 +50,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     freq_mask_param: 27
     time_warp_w: 80
   deep_spec_augment:
-    apply: True
+    apply: False
     time_mask_param: 100
     freq_mask_param: 27
     layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.
