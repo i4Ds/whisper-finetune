@@ -13,8 +13,8 @@ dataset:
   max_prompt_length: 223 # The maximum number of tokens to use for the prompt (Fixed by whisper).
   prompt_use_rate: 0.5 # How often to use the prompt.
   no_timestamp_rate: 0.5 # How often to use no timestamps.
-  batch_size: 64
-  batch_size_eval: 64
+  batch_size: 16
+  batch_size_eval: 16
 lr_scheduler:
   type: linear
   warmup_steps: 128 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
@@ -22,13 +22,13 @@ optimizer:
   type: adamw
   8bit: True
   params:
-    lr: 2.0e-4
+    lr: 3.0e-4
     weight_decay: 0.1
     betas: [0.9, 0.98]
     eps: 1.0e-6
     amsgrad: False
 training:
-  accum_grad_steps: 4
+  accum_grad_steps: 16
   train_only_decoder: False # If true, disable the grads of the encoder
   train_only_encoder: False # If true, disable the grads of the decoder
   max_grad_norm: 1.0
@@ -50,7 +50,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     freq_mask_param: 27
     time_warp_w: 80
   deep_spec_augment:
-    apply: True
+    apply: False
     time_mask_param: 100
     freq_mask_param: 27
     layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.

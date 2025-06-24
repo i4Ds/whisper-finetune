@@ -81,10 +81,11 @@ def get_audio_augments_office():
                 min_size_z=2.4,  max_size_z=3.0,
                 # Carpeted surfaces → absorption 0.10-0.20  (office/library value)
                 calculation_mode="absorption",
-                min_absorption_value=0.10,
+                min_absorption_value=0.05,
                 max_absorption_value=0.20,   # :contentReference[oaicite:0]{index=0}
                 # Chop tail so clip length stays intact
                 leave_length_unchanged=True,
+                max_order=3, 
                 p=1.0,
             ),
         ],

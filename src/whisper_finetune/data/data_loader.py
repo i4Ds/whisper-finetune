@@ -44,7 +44,8 @@ class AudioDataset(Dataset):
         spec_augment_params: Optional[dict] = None,
         extremes_spec_augment: bool = False,
         extremes_spec_augment_params: Optional[dict] = None,
-        audio_aug: bool = False,
+        apply_baseline_aug: bool = False,
+        apply_office_aug: bool = False,
     ) -> None:
         """
         Initializes the class with the given parameters.
@@ -62,7 +63,8 @@ class AudioDataset(Dataset):
             spec_augment_params (Optional[dict], optional): The parameters for spectrogram augmentation. Defaults to None.
             extremes_spec_augment (bool, optional): Whether to apply masking on extreme frequency ranges. Defaults to False.
             extremes_spec_augment_params (Optional[dict], optional): Parameters for extreme frequency masking (``low_freq_range`` and ``high_freq_range``). Defaults to None.
-            audio_aug (bool, optional): Whether to use audio augmentation, such as noise, high-pass filter, and low-pass filter. Defaults to False.
+            apply_office_aug (bool, optional): Whether to apply office augmentation. Defaults to False.
+            apply_baseline_aug (bool, optional): Whether to apply baseline augmentation. Defaults to False.
 
         Returns:
             None
@@ -81,7 +83,11 @@ class AudioDataset(Dataset):
         self.no_timestamps_rate = no_timestamps_rate
         self.spec_augment = spec_augment
         self.extremes_spec_augment = extremes_spec_augment
-        self.audio_aug = audio_aug
+        self.apply_baseline_aug = apply_baseline_aug
+        self.apply_office_aug = apply_office_aug
+
+        # Fixed
+        self.aud_augment = None
 
         if spec_augment:
             self.time_masking = T.TimeMasking(time_mask_param=spec_augment_params["time_mask_param"])
@@ -99,10 +105,13 @@ class AudioDataset(Dataset):
             )
         else:
             self.extreme_freq_masking = None
-        if self.audio_aug:
-            base_augment = get_audio_augments_baseline()
-            office_augment = get_audio_augments_office()
-            self.aud_augment = Compose([base_augment, office_augment], p=1.0)
+        if self.apply_office_aug or self.apply_baseline_aug:
+            aud_aug = []
+            if self.apply_baseline_aug:
+                aud_aug.append(get_audio_augments_baseline())
+            if self.apply_office_aug:
+                aud_aug.append(get_audio_augments_office())
+            self.aud_augment = Compose(aud_aug)
 
         self.num_frames_per_second = N_FRAMES / CHUNK_LENGTH
         # timestamps tokens are from <|0.00|> to <|30.00|> with a step of 0.02
@@ -202,7 +211,7 @@ class AudioDataset(Dataset):
     def _calculate_mel(
         self, audio_array: ndarray, next_partial_segment_start: Optional[float], no_timestamps: bool
     ) -> torch.Tensor:
-        if self.audio_aug:
+        if self.aud_augment is not None:
             audio_array = self.aud_augment(audio_array, sample_rate=16000)
         mel = log_mel_spectrogram(audio_array, n_mels=self.n_mels, device=self.device)
         if no_timestamps and next_partial_segment_start is not None:
@@ -299,7 +308,8 @@ def get_dataloader(
     spec_augment_params: Optional[dict] = None,
     extremes_spec_augment: bool = False,
     extremes_spec_augment_params: Optional[dict] = None,
-    audio_aug: bool = False,
+    apply_baseline_aug: bool = False,
+    apply_office_aug: bool = False,
 ) -> DataLoader:
     print(f"Found {len(hu_dataset)} records in the dataset.")
     dataset = AudioDataset(
@@ -315,7 +325,8 @@ def get_dataloader(
         spec_augment_params=spec_augment_params,
         extremes_spec_augment=extremes_spec_augment,
         extremes_spec_augment_params=extremes_spec_augment_params,
-        audio_aug=audio_aug,
+        apply_baseline_aug=apply_baseline_aug,
+        apply_office_aug=apply_office_aug
     )
     return DataLoader(
         dataset,
