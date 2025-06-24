@@ -4,7 +4,7 @@ model:
 dataset:
   train_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_t_ds: [null, null, 15000] # How many rows to sample from the respective dataset per training run.
-  groupby_col: [null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
+  groupby_col: [null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
   val_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
@@ -59,6 +59,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     low_freq_range: 10
     high_freq_range: 20
   audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).  See: https://github.com/daekeun-ml/azure-genai-utils/blob/main/azure_genai_utils/stt/augment.py
-    apply: True
+    apply_office_aug: True
+    apply_baseline_aug: True
 seed: 123
 save_dir: output
