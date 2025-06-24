@@ -271,10 +271,6 @@ def main(config):
         prompt_use_rate=0,
         no_timestamps_rate=0,
         num_workers=min(os.cpu_count(), 8),
-        spec_augment=False,
-        extremes_spec_augment=False,
-        extremes_spec_augment_params=None,
-        audio_aug=False,
     )
 
     # Load optimizer
