@@ -2,7 +2,7 @@ model:
   init_name: large-v3-turbo
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
 dataset:
-  train_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
+  train_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de, i4ds/spc_r_whisper]
   select_n_per_t_ds: [null, null, 15000] # How many rows to sample from the respective dataset per training run.
   groupby_col: [null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
   val_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
@@ -50,7 +50,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     freq_mask_param: 27
     time_warp_w: 80
   deep_spec_augment:
-    apply: False
+    apply: True
     time_mask_param: 100
     freq_mask_param: 27
     layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.
