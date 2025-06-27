@@ -22,7 +22,7 @@ optimizer:
   type: adamw
   8bit: True
   params:
-    lr: 2.0e-4
+    lr: 5.0e-2
     weight_decay: 0.1
     betas: [0.9, 0.98]
     eps: 1.0e-6
@@ -33,7 +33,7 @@ training:
   train_only_encoder: False # If true, disable the grads of the decoder
   max_grad_norm: 1.0
   stochastic_depth: 0.1 # Stochastic depth, used in whisper. See https://arxiv.org/abs/1603.09382
-  epochs: 2
+  epochs: 3
   eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
   max_train_loss: 25 # We observed that if the loss goes above 25, the training run has failed and should be restarted with other parameters.
@@ -50,7 +50,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     freq_mask_param: 27
     time_warp_w: 80
   deep_spec_augment:
-    apply: False
+    apply: True
     time_mask_param: 100
     freq_mask_param: 27
     layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.
