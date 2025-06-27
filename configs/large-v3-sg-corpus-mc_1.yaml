@@ -22,7 +22,7 @@ optimizer:
   type: adamw
   8bit: True
   params:
-    lr: 3.0e-4
+    lr: 5.0e-5
     weight_decay: 0.1
     betas: [0.9, 0.98]
     eps: 1.0e-6
@@ -54,6 +54,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     time_mask_param: 100
     freq_mask_param: 27
     layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.
+  bpe_dropout: 0.1 # Dropout on the BPE tokens.
   extremes_spec_augment:
     apply: False # Leads to unstable training.
     low_freq_range: 10

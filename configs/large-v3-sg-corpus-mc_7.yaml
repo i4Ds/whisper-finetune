@@ -17,7 +17,7 @@ dataset:
   batch_size_eval: 64
 lr_scheduler:
   type: linear
-  warmup_steps: 8 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
+  warmup_steps: 128 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
 optimizer:
   type: adamw
   8bit: True
@@ -54,6 +54,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     time_mask_param: 100
     freq_mask_param: 27
     layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.
+  bpe_dropout: 0.1 # Dropout on the BPE tokens.
   extremes_spec_augment:
     apply: False # Leads to unstable training.
     low_freq_range: 10

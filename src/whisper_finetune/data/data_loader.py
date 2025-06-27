@@ -46,6 +46,7 @@ class AudioDataset(Dataset):
         extremes_spec_augment_params: Optional[dict] = None,
         apply_baseline_aug: bool = False,
         apply_office_aug: bool = False,
+        bpe_dropout: float = 0.0,
     ) -> None:
         """
         Initializes the class with the given parameters.
@@ -65,6 +66,7 @@ class AudioDataset(Dataset):
             extremes_spec_augment_params (Optional[dict], optional): Parameters for extreme frequency masking (``low_freq_range`` and ``high_freq_range``). Defaults to None.
             apply_office_aug (bool, optional): Whether to apply office augmentation. Defaults to False.
             apply_baseline_aug (bool, optional): Whether to apply baseline augmentation. Defaults to False.
+            bpe_dropout (float, optional): The rate at which to drop BPE tokens. Defaults to 0.0.
 
         Returns:
             None
@@ -85,6 +87,7 @@ class AudioDataset(Dataset):
         self.extremes_spec_augment = extremes_spec_augment
         self.apply_baseline_aug = apply_baseline_aug
         self.apply_office_aug = apply_office_aug
+        self.bpe_dropout = bpe_dropout
 
         # Fixed
         self.aud_augment = None
@@ -165,7 +168,7 @@ class AudioDataset(Dataset):
                     raise ValueError(f"Invalid timestamp: {timestamp}")
                 continue
             else:
-                tokens.extend(self.tokenizer.encode(part))
+                tokens.extend(self.tokenizer.encode(part, dropout_prob=self.bpe_dropout))
 
         return tokens
 
@@ -184,7 +187,7 @@ class AudioDataset(Dataset):
                 token = self.tokenizer.timestamp_begin + round(timestamp * 100) // 2
                 tokens.append(token)
             else:
-                tokens.extend(self.tokenizer.encode(part))
+                tokens.extend(self.tokenizer.encode(part, dropout_prob=self.bpe_dropout))
 
         return tokens
 
@@ -310,6 +313,7 @@ def get_dataloader(
     extremes_spec_augment_params: Optional[dict] = None,
     apply_baseline_aug: bool = False,
     apply_office_aug: bool = False,
+    bpe_dropout: float = 0.0
 ) -> DataLoader:
     print(f"Found {len(hu_dataset)} records in the dataset.")
     dataset = AudioDataset(
@@ -326,7 +330,8 @@ def get_dataloader(
         extremes_spec_augment=extremes_spec_augment,
         extremes_spec_augment_params=extremes_spec_augment_params,
         apply_baseline_aug=apply_baseline_aug,
-        apply_office_aug=apply_office_aug
+        apply_office_aug=apply_office_aug,
+        bpe_dropout=bpe_dropout
     )
     return DataLoader(
         dataset,
