@@ -261,6 +261,7 @@ def main(config):
         extremes_spec_augment_params=config["augmentation"]["extremes_spec_augment"],
         apply_baseline_aug=config["augmentation"]["audio_augment"]["apply_baseline_aug"],
         apply_office_aug=config["augmentation"]["audio_augment"]["apply_office_aug"],
+        bpe_dropout=config["augmentation"]["bpe_dropout"],
     )
     val_loader = get_dataloader(
         hu_dataset=val_dataset,
