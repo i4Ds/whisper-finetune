@@ -262,7 +262,10 @@ class AudioDataset(Dataset):
 
         decoder_input = prompt_tokens + special_tokens + text_tokens
         if len(decoder_input) > self.model_n_text_ctx:
-            raise ValueError(f"Input is too long: {record} (length: {len(decoder_input)})")
+            print(f"Input is too long: {record} (length: {len(decoder_input)}). Shortening... the prompt")
+            too_long_by = len(decoder_input) - self.model_n_text_ctx
+            prompt_tokens = prompt_tokens[:-too_long_by]
+            decoder_input = prompt_tokens + special_tokens + text_tokens
 
         decoder_output = self._construct_decoder_output(prompt_tokens, special_tokens, text_tokens)
         audio_arr = record["audio"]["array"]
