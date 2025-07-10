@@ -3,7 +3,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --ntasks=1
 #SBATCH --mem-per-cpu=8G
-#SBATCH --time=25:00:00
+#SBATCH --time=47:00:00
 #SBATCH --partition=a100-80g   # or titanx
 #SBATCH --gres=gpu:1
 #SBATCH --qos=gpu1week
