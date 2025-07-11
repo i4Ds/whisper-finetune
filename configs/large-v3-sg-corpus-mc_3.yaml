@@ -62,5 +62,5 @@ augmentation: # Data augmentations, see the whisper paper for more details
   audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).  See: https://github.com/daekeun-ml/azure-genai-utils/blob/main/azure_genai_utils/stt/augment.py
     apply_office_aug: False
     apply_baseline_aug: False
-seed: 123
+seed: 420
 save_dir: output
