@@ -2,9 +2,9 @@ model:
   init_name: large-v3-turbo
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
 dataset:
-  train_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de, i4ds/spc_r_whisper]
-  select_n_per_t_ds: [null, null, 15000, null] # How many rows to sample from the respective dataset per training run.
-  groupby_col: [null, null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
+  train_datasets: [i4ds/mozilla-cv-13-long-text-de, i4ds/spc_r_whisper]
+  select_n_per_t_ds: [15000, null] # How many rows to sample from the respective dataset per training run.
+  groupby_col: [null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
   val_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
@@ -22,7 +22,7 @@ optimizer:
   type: adamw
   8bit: True
   params:
-    lr: 1.0e-5
+    lr: 5.0e-5
     weight_decay: 0.1
     betas: [0.9, 0.98]
     eps: 1.0e-6
@@ -62,5 +62,5 @@ augmentation: # Data augmentations, see the whisper paper for more details
   audio_augment: # Audio augmentations by reducing audio quality (white noise, high-pass filter, and low-pass filter).  See: https://github.com/daekeun-ml/azure-genai-utils/blob/main/azure_genai_utils/stt/augment.py
     apply_office_aug: False
     apply_baseline_aug: False
-seed: 123
+seed: 420
 save_dir: output
