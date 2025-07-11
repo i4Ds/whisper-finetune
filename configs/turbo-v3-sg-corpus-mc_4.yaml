@@ -2,9 +2,9 @@ model:
   init_name: large-v3-turbo
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
 dataset:
-  train_datasets: [i4ds/mozilla-cv-13-long-text-de, i4ds/spc_r_whisper]
-  select_n_per_t_ds: [15000, null] # How many rows to sample from the respective dataset per training run.
-  groupby_col: [null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
+  train_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de, i4ds/spc_r_whisper]
+  select_n_per_t_ds: [null, null, 15000, null] # How many rows to sample from the respective dataset per training run.
+  groupby_col: [null, null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
   val_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
@@ -22,7 +22,7 @@ optimizer:
   type: adamw
   8bit: True
   params:
-    lr: 1.0e-5
+    lr: 5.0e-5
     weight_decay: 0.1
     betas: [0.9, 0.98]
     eps: 1.0e-6
@@ -33,7 +33,7 @@ training:
   train_only_encoder: False # If true, disable the grads of the decoder
   max_grad_norm: 1.0
   stochastic_depth: 0.1 # Stochastic depth, used in whisper. See https://arxiv.org/abs/1603.09382
-  epochs: 5
+  epochs: 3
   eval_steps: 0.25 # % of each epoch to do validation.
   save_all_checkpoints: False
   max_train_loss: 25 # We observed that if the loss goes above 25, the training run has failed and should be restarted with other parameters.
@@ -47,7 +47,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     p: 1.0
-    freq_mask_param: 27
+    freq_mask_param: 43
     time_warp_w: 80
   deep_spec_augment:
     apply: True

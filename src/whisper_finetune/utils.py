@@ -11,7 +11,7 @@ import torch.distributed as dist
 import yaml
 
 
-def calculate_training_steps(config: Dict, train_dataset) -> None:
+def calculate_training_steps(config: Dict, train_dataset) -> int:
     # Extract relevant values from config
     samples = len(train_dataset)
     epochs = config["training"]["epochs"]
@@ -24,7 +24,7 @@ def calculate_training_steps(config: Dict, train_dataset) -> None:
     return training_steps
 
 
-def calculate_val_steps(config: Dict) -> None:
+def calculate_val_steps(config: Dict) -> int:
     val_steps = (config["training"]["train_steps"] / config["training"]["epochs"]) * config["training"]["eval_steps"]
     return int(val_steps)
 
