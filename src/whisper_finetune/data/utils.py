@@ -177,6 +177,9 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col):
     """
     processed_datasets = []
 
+    if not len(select_n_per_ds) == len(groupby_col) or len(select_n_per_ds) == len(dataset_names):
+        print(f"Warning! Check length of select_n_per_ds, groupby_col and dataset_names")
+
     for N, GROUPBYCOL, dataset_name in zip(select_n_per_ds, groupby_col, dataset_names):
         dataset = load_dataset(dataset_name, split=split_name)
         original_size = len(dataset)

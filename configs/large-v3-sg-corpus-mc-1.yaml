@@ -4,7 +4,7 @@ model:
 dataset:
   train_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de, i4ds/spc_r_whisper]
   select_n_per_t_ds: [null, null, 15000, null] # How many rows to sample from the respective dataset per training run.
-  groupby_col: [null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
+  groupby_col: [null, null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
   val_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
@@ -13,8 +13,8 @@ dataset:
   max_prompt_length: 223 # The maximum number of tokens to use for the prompt (Fixed by whisper).
   prompt_use_rate: 0.5 # How often to use the prompt.
   no_timestamp_rate: 0.5 # How often to use no timestamps.
-  batch_size: 16
-  batch_size_eval: 16
+  batch_size: 32
+  batch_size_eval: 32
 lr_scheduler:
   type: linear
   warmup_steps: 8 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
@@ -28,7 +28,7 @@ optimizer:
     eps: 1.0e-6
     amsgrad: False
 training:
-  accum_grad_steps: 16
+  accum_grad_steps: 8
   train_only_decoder: False # If true, disable the grads of the encoder
   train_only_encoder: False # If true, disable the grads of the decoder
   max_grad_norm: 1.0
@@ -47,7 +47,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     p: 1.0
-    freq_mask_param: 27
+    freq_mask_param: 43
     time_warp_w: 80
   deep_spec_augment:
     apply: True
