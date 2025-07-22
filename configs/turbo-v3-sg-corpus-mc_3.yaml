@@ -9,7 +9,7 @@ dataset:
   select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
   valid_split_name: "validation" # Split name to use for the validation dataset.
-  no_timestamp_training: False # Whether to use no timestamps for training.
+  no_timestamp_training: True # Whether to use no timestamps for training.
   max_prompt_length: 223 # The maximum number of tokens to use for the prompt (Fixed by whisper).
   prompt_use_rate: 0.5 # How often to use the prompt.
   no_timestamp_rate: 0.5 # How often to use no timestamps.
@@ -47,14 +47,14 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     p: 1.0
-    freq_mask_param: 43
+    freq_mask_param: 27
     time_warp_w: 80
   deep_spec_augment:
     apply: True
     time_mask_param: 100
     freq_mask_param: 27
     layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.
-  bpe_dropout: 0.1 # Dropout on the BPE tokens.
+  bpe_dropout: 0.0 # Dropout on the BPE tokens.
   extremes_spec_augment:
     apply: False # Leads to unstable training.
     low_freq_range: 10
