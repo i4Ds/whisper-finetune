@@ -161,69 +161,95 @@ class ExtremesFrequencyMasking:
         return specs
 
 
-# Function to process individual datasets
-def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col):
+def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, print_examples=False, example_count=5):
     """
-    Function to process individual datasets with optional groupby sampling.
+    Function to process individual datasets with optional groupby sampling,
+    filtering out entries with text < 30 chars or audio < 6 seconds, and optionally printing examples.
 
     Args:
     - dataset_names (list): List of dataset names to process.
     - select_n_per_ds (list): List of N values for sampling from each dataset.
     - split_name (str): The split of the dataset to use.
     - groupby_col (list): Column name to use for groupby sampling.
+    - print_examples (bool): If True, print a few filtered examples.
+    - example_count (int): Number of examples to print.
 
     Returns:
     - concatenated_dataset: A concatenated dataset of all processed datasets.
     """
     processed_datasets = []
 
+    # Validate lengths
     if not (len(select_n_per_ds) == len(groupby_col) or len(select_n_per_ds) == len(dataset_names)):
         print(f"Warning! Check length of select_n_per_ds, groupby_col and dataset_names")
 
     for N, GROUPBYCOL, dataset_name in zip(select_n_per_ds, groupby_col, dataset_names):
+        # Load
         dataset = load_dataset(dataset_name, split=split_name)
-        original_size = len(dataset)
         print(f"Processing dataset: {dataset_name}")
-        print(f"Original dataset size: {original_size}")
+        print(f"Original dataset size: {len(dataset)}")
 
-        if N is not None:
-            if GROUPBYCOL and GROUPBYCOL in dataset.column_names:
-                print(f"Performing groupby sampling on column: {GROUPBYCOL}")
-                # Perform groupby sampling
-                groups = defaultdict(list)
-                for idx, item in enumerate(dataset[GROUPBYCOL]):
-                    groups[item].append(idx)
-
-                print(f"Number of groups: {len(groups)}")
-                selected_indices = []
-                for group_name, group_indices in groups.items():
-                    # Select N samples from each group
-                    print(f"Selected {N} from group {group_name}")
-                    selected_indices.extend(np.random.choice(group_indices, size=N))
-
-            else:
-                print("Performing regular random sampling")
-                # Regular sampling by selecting first N rows (for reproduceability)
-                selected_indices = np.arange(N)
-
-            dataset = dataset.select(selected_indices)
-            print(f"Number of samples selected: {len(dataset)}")
-        else:
-            print("No sampling performed (N is None)")
-
+        # Rename 'sentence' to 'text'
         if "sentence" in dataset.column_names:
             dataset = dataset.rename_column("sentence", "text")
 
+        # Ensure 'language' column exists
         if "language" not in dataset.column_names:
             dataset = dataset.map(
-                add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
+                add_fixed_value, batched=True,
+                fn_kwargs={"col_name": "language", "fixed_value": "de"}
             )
+
+        # Define validation
+        def is_valid(example):
+            text = example['text']
+            if len(text) < 30:
+                return False
+            audio = example.get("audio")
+            arr = audio.get("array") if isinstance(audio, dict) else getattr(audio, "array", None)
+            sr = audio.get("sampling_rate") if isinstance(audio, dict) else getattr(audio, "sampling_rate", None)
+            duration = len(arr) / sr
+            if duration < 4.0:
+                return False
+            return True
+
+        # Filter
+        filtered = dataset.filter(is_valid)
+        print(f"Size after filtering: {len(filtered)}")
+
+        # Optionally print examples
+        if print_examples:
+            print(f"Printing first {example_count} filtered examples:")
+            for ex in filtered.select(range(min(example_count, len(filtered)))):
+                print(ex)
+
+        # Sampling
+        if N is not None:
+            if GROUPBYCOL and GROUPBYCOL in filtered.column_names:
+                print(f"Performing groupby sampling on column: {GROUPBYCOL}")
+                groups = defaultdict(list)
+                for idx, item in enumerate(filtered[GROUPBYCOL]):
+                    groups[item].append(idx)
+                selected_indices = []
+                for group_indices in groups.values():
+                    replace = len(group_indices) < N
+                    selected_indices.extend(np.random.choice(group_indices, size=N, replace=replace))
+            else:
+                print("Performing regular random sampling")
+                count = min(N, len(filtered))
+                selected_indices = np.arange(count)
+            dataset = filtered.select(selected_indices)
+            print(f"Number of samples selected: {len(dataset)}")
+        else:
+            print("No sampling performed (N is None)")
+            dataset = filtered
 
         processed_datasets.append(dataset)
 
-    concatenated_dataset = concatenate_datasets(processed_datasets)
-    print(f"Total rows in concatenated dataset: {len(concatenated_dataset)}")
-    return concatenated_dataset
+    concatenated = concatenate_datasets(processed_datasets)
+    print(f"Total rows in concatenated dataset: {len(concatenated)}")
+    return concatenated
+
 
 
 def add_fixed_value(batch, col_name, fixed_value):
