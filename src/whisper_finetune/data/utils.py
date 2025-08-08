@@ -200,35 +200,12 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
                 fn_kwargs={"col_name": "language", "fixed_value": "de"}
             )
 
-        # Define validation
-        def is_valid(example):
-            text = example['text']
-            if len(text) < 30:
-                return False
-            audio = example.get("audio")
-            arr = audio.get("array") if isinstance(audio, dict) else getattr(audio, "array", None)
-            sr = audio.get("sampling_rate") if isinstance(audio, dict) else getattr(audio, "sampling_rate", None)
-            duration = len(arr) / sr
-            if duration < 4.0:
-                return False
-            return True
-
-        # Filter
-        filtered = dataset.filter(is_valid)
-        print(f"Size after filtering: {len(filtered)}")
-
-        # Optionally print examples
-        if print_examples:
-            print(f"Printing first {example_count} filtered examples:")
-            for ex in filtered.select(range(min(example_count, len(filtered)))):
-                print(ex)
-
         # Sampling
         if N is not None:
-            if GROUPBYCOL and GROUPBYCOL in filtered.column_names:
+            if GROUPBYCOL and GROUPBYCOL in dataset.column_names:
                 print(f"Performing groupby sampling on column: {GROUPBYCOL}")
                 groups = defaultdict(list)
-                for idx, item in enumerate(filtered[GROUPBYCOL]):
+                for idx, item in enumerate(dataset[GROUPBYCOL]):
                     groups[item].append(idx)
                 selected_indices = []
                 for group_indices in groups.values():
@@ -236,13 +213,13 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
                     selected_indices.extend(np.random.choice(group_indices, size=N, replace=replace))
             else:
                 print("Performing regular random sampling")
-                count = min(N, len(filtered))
+                count = min(N, len(dataset))
                 selected_indices = np.arange(count)
-            dataset = filtered.select(selected_indices)
+            dataset = dataset.select(selected_indices)
             print(f"Number of samples selected: {len(dataset)}")
         else:
             print("No sampling performed (N is None)")
-            dataset = filtered
+            dataset = dataset
 
         processed_datasets.append(dataset)
 
