@@ -125,8 +125,27 @@ class AudioDataset(Dataset):
         # Some checks
         assert np.intersect1d(self.hu_dataset.column_names, ["audio", "text", "language"]).size == 3
 
+        # Some more data checks! 
+        self.valid_indices = []
+        for i in range(len(self.hu_dataset)):
+            try:
+                record = self.hu_dataset[i]
+                array = record["audio"]["array"]
+                x = torch.as_tensor(array)
+                # Check if text is valid
+                assert isinstance(record["text"], str), f"Text is not a string: {record['text']}"
+                # Append valid index
+                self.valid_indices.append(i)
+            except Exception as e:
+                print(f"Skipping index {i} due to error: {e}")
+
+        # Print the number of valid records
+        if len(self.valid_indices) != len(self.hu_dataset):
+            print(f"Filtered out {len(self.hu_dataset) - len(self.valid_indices)} invalid records from the dataset.")
+            print(f"Invalid indices: {[i for i in range(len(self.hu_dataset)) if i not in self.valid_indices]}")
+
     def __len__(self) -> int:
-        return len(self.hu_dataset)
+        return len(self.valid_indices)
 
     def _get_prompt_tokens(self, record: Record, no_timestamps: bool) -> List[int]:
         if torch.rand(1).item() < self.prompt_use_rate and len(record["prompt"]) > 0:
@@ -252,6 +271,7 @@ class AudioDataset(Dataset):
         return decoder_output
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        index = self.valid_indices[index]
         record = self.hu_dataset[index]
         no_timestamps = self.no_timestamp_training or torch.rand(1).item() < self.no_timestamps_rate
 
