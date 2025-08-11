@@ -6,7 +6,7 @@ dataset:
   select_n_per_t_ds: [15000, null, null, null, null] # How many rows to sample from the respective dataset per training run.
   groupby_col: [null, null, null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
   val_datasets: [i4ds/sds-stt4sg-valid, i4ds/srg_v3_real_valid, i4ds/mozilla-cv-13-long-text-de, i4ds/srg_v3_pl_valid]
-  select_n_per_v_ds: [500, 500, 500, 50] # How many rows to sample from the respective dataset per training run.
+  select_n_per_v_ds: [500, 500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
   valid_split_name: "validation" # Split name to use for the validation dataset.
   no_timestamp_training: True # Whether to use no timestamps for training.
@@ -47,12 +47,12 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     p: 1.0
-    freq_mask_param: 27
+    freq_mask_param: 43
     time_warp_w: 80
   deep_spec_augment:
     apply: True
     time_mask_param: 100
-    freq_mask_param: 27
+    freq_mask_param: 43
     layer_indices: null # Which encoder layer to apply deep spec augment. If null, apply to all.
   bpe_dropout: 0.0 # Dropout on the BPE tokens.
   extremes_spec_augment:
