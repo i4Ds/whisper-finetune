@@ -2,11 +2,11 @@ model:
   init_name: large-v3-turbo
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
 dataset:
-  train_datasets: [i4ds/spc_r_whisper]
-  select_n_per_t_ds: [null] # How many rows to sample from the respective dataset per training run.
-  groupby_col: [null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
-  val_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
-  select_n_per_v_ds: [500, 500, 500] # How many rows to sample from the respective dataset per training run.
+  train_datasets: [i4ds/mozilla-cv-13-long-text-de, i4ds/spc_r_whisper, i4ds/srg_v3_real, i4ds/srg_v3_pl, i4ds/stt4sg-sds-train-clean]
+  select_n_per_t_ds: [15000, null, null, null, null] # How many rows to sample from the respective dataset per training run.
+  groupby_col: [null, null, null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
+  val_datasets: [i4ds/sds-stt4sg-valid, i4ds/srg_v3_real_valid, i4ds/mozilla-cv-13-long-text-de, i4ds/srg_v3_pl_valid]
+  select_n_per_v_ds: [500, 500, 500, 500] # How many rows to sample from the respective dataset per training run.
   train_split_name: "train" # Split name to use for the train dataset.
   valid_split_name: "validation" # Split name to use for the validation dataset.
   no_timestamp_training: True # Whether to use no timestamps for training.
@@ -47,7 +47,7 @@ augmentation: # Data augmentations, see the whisper paper for more details
     apply: True
     time_mask_param: 100
     p: 1.0
-    freq_mask_param: 27
+    freq_mask_param: 43
     time_warp_w: 80
   deep_spec_augment:
     apply: True
