@@ -177,3 +177,4 @@ downloaded_models/*
 *.txt
 *.rtf
 *.m4a
+hf_models/*
