@@ -14,4 +14,4 @@ conda activate whisper_finetune
 # Get env variables
 export $(cat .env | xargs)
 
-python src/whisper_finetune/scripts/finetune.py --config configs/DEBUG.yaml
+python src/whisper_finetune/scripts/finetune.py --config configs/turbo-v3-sg-corpus-mc_1.yaml
