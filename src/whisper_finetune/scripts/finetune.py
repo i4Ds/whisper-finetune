@@ -108,20 +108,21 @@ def main_loop(
 
     save_model(model, f"{save_dir}/last_model.pt")
 
-    # Only upload models to wandb if they are different
-    import filecmp
+    if t_config.get('upload_models_to_wandb', False):
+        # Only upload models to wandb if they are different
+        import filecmp
 
-    last_model_path = f"{save_dir}/last_model.pt"
-    best_model_path = f"{save_dir}/best_model.pt"
+        last_model_path = f"{save_dir}/last_model.pt"
+        best_model_path = f"{save_dir}/best_model.pt"
 
-    if os.path.exists(best_model_path) and filecmp.cmp(last_model_path, best_model_path, shallow=False):
-        print("Last model and best model are identical. Uploading only best_model.pt to wandb.")
-        wandb.save(best_model_path)
-    else:
-        print("Uploading both last_model.pt and best_model.pt to wandb.")
-        wandb.save(last_model_path)
-        if os.path.exists(best_model_path):
+        if os.path.exists(best_model_path) and filecmp.cmp(last_model_path, best_model_path, shallow=False):
+            print("Last model and best model are identical. Uploading only best_model.pt to wandb.")
             wandb.save(best_model_path)
+        else:
+            print("Uploading both last_model.pt and best_model.pt to wandb.")
+            wandb.save(last_model_path)
+            if os.path.exists(best_model_path):
+                wandb.save(best_model_path)
 
 
 def main(config):
