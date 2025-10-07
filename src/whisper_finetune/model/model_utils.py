@@ -198,7 +198,31 @@ def infinite_iter(data_loader: DataLoader) -> Iterator:
             yield batch
 
 
-class CheckpointedStochasticAudioEncoder(AudioEncoder):
+class StochasticDepthMixin:
+    """
+    Mixin class providing stochastic depth functionality with gradient checkpointing.
+    See: https://arxiv.org/abs/1603.09382
+    """
+    
+    def stochastic_depth(self, x: Tensor, layer: Callable[[Tensor], Tensor], p: float) -> Tensor:
+        """
+        Apply stochastic depth: randomly skip a layer during training with probability p.
+        Uses gradient checkpointing to save memory.
+        
+        Args:
+            x: Input tensor
+            layer: Layer function to apply
+            p: Probability of skipping the layer during training
+            
+        Returns:
+            Output tensor (either skipped or after applying the layer)
+        """
+        if self.training and torch.rand(1).item() < p:
+            return x  # Skip the layer
+        return checkpoint(layer, x, use_reentrant=False)  # Apply the layer with checkpointing
+
+
+class CheckpointedStochasticAudioEncoder(StochasticDepthMixin, AudioEncoder):
     """
     CheckpointedStochasticAudioEncoder, which contains stochastic depth and checkpointing, also used in the original Whisper model.
     See: https://arxiv.org/abs/1603.09382
@@ -207,11 +231,6 @@ class CheckpointedStochasticAudioEncoder(AudioEncoder):
     def __init__(self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, stochastic_depth_prob: float):
         super().__init__(n_mels, n_ctx, n_state, n_head, n_layer)
         self.stochastic_depth_prob = stochastic_depth_prob
-
-    def stochastic_depth(self, x: Tensor, layer: Callable[[Tensor], Tensor], p: float) -> Tensor:
-        if self.training and torch.rand(1).item() < p:
-            return x  # Skip the layer
-        return checkpoint(layer, x, use_reentrant=False)  # Apply the layer with checkpointing
 
     def forward(self, x: Tensor):
         """
@@ -233,7 +252,7 @@ class CheckpointedStochasticAudioEncoder(AudioEncoder):
         return x
 
 
-class CheckpointedStochasticTextDecoder(TextDecoder):
+class CheckpointedStochasticTextDecoder(StochasticDepthMixin, TextDecoder):
     """
     CheckpointedStochasticTextDecoder, which contains stochastic depth and checkpointing, also used in the original Whisper model.
     See: https://arxiv.org/abs/1603.09382
@@ -242,11 +261,6 @@ class CheckpointedStochasticTextDecoder(TextDecoder):
     def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, stochastic_depth_prob: float):
         super().__init__(n_vocab, n_ctx, n_state, n_head, n_layer)
         self.stochastic_depth_prob = stochastic_depth_prob
-
-    def stochastic_depth(self, x: Tensor, layer: Callable[[Tensor], Tensor], p: float) -> Tensor:
-        if self.training and torch.rand(1).item() < p:
-            return x  # Skip the layer
-        return checkpoint(layer, x, use_reentrant=False)  # Apply the layer with checkpointing
 
     def forward(self, x: Tensor, xa: Tensor, kv_cache: Optional[dict] = None):
         """

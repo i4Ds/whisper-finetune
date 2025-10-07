@@ -1,0 +1,98 @@
+# Example Configuration for Whisper Fine-tuning
+# This file demonstrates the structure and options available for training.
+# Modify this file according to your specific needs.
+
+model:
+  init_name: large-v3-turbo  # Base model to fine-tune (e.g., large-v3-turbo, large-v3, turbo, etc.)
+  bfloat16: False  # If True, use bfloat16 precision for model weights
+
+dataset:
+  # Train datasets: Can be HuggingFace dataset names (e.g., "user/dataset-name") 
+  # or local paths (e.g., "path/to/local/dataset")
+  train_datasets: [dataset1, dataset2, dataset3]
+  
+  # How many samples to select from each training dataset (null = use all)
+  select_n_per_t_ds: [null, null, 15000]
+  
+  # Column to group by for stratified sampling (null = no grouping)
+  # If set, performs groupby sampling: select_n_per_t_ds samples per group
+  groupby_col: [null, null, null]
+  
+  # Validation datasets: Can be HuggingFace dataset names or local paths
+  val_datasets: [dataset1, dataset2, dataset3]
+  
+  # How many samples to select from each validation dataset
+  select_n_per_v_ds: [500, 500, 500]
+  
+  train_split_name: "train"  # Name of the training split in the dataset
+  valid_split_name: "validation"  # Name of the validation split in the dataset
+  
+  no_timestamp_training: False  # If True, disable timestamp tokens during training
+  max_prompt_length: 223  # Maximum prompt length in tokens (Whisper constraint)
+  prompt_use_rate: 0.5  # Probability of using previous context as prompt (0.0-1.0)
+  no_timestamp_rate: 0.5  # Probability of removing timestamps during training (0.0-1.0)
+  
+  batch_size: 64  # Training batch size
+  batch_size_eval: 64  # Evaluation batch size
+
+lr_scheduler:
+  type: linear  # Options: linear, cosine, cosine_with_restarts, cosine_with_warmup_restarts
+  warmup_steps: 128  # Warmup steps (if > 1) or ratio of total steps (if < 1)
+
+optimizer:
+  type: adamw  # Options: adam, adamw
+  8bit: True  # Use 8-bit optimizer for memory efficiency
+  params:
+    lr: 2.0e-4  # Learning rate
+    weight_decay: 0.1  # L2 regularization
+    betas: [0.9, 0.98]  # Adam beta parameters
+    eps: 1.0e-6  # Epsilon for numerical stability
+    amsgrad: False  # Use AMSGrad variant
+
+training:
+  accum_grad_steps: 4  # Gradient accumulation steps (effective batch = batch_size * accum_grad_steps)
+  train_only_decoder: False  # If True, freeze encoder and only train decoder
+  train_only_encoder: False  # If True, freeze decoder and only train encoder
+  max_grad_norm: 1.0  # Gradient clipping threshold
+  stochastic_depth: 0.1  # Stochastic depth probability (layer dropout)
+  epochs: 2  # Number of training epochs
+  eval_steps: 0.25  # Fraction of epoch between validation runs (0.25 = 4 times per epoch)
+  save_all_checkpoints: False  # If True, save checkpoint at each validation step
+  max_train_loss: 25  # Abort training if loss exceeds this threshold (indicates failure)
+  mixed_precision_training: True  # Use automatic mixed precision
+  mp_dtype: fp16  # Mixed precision dtype: fp16 or bfloat16
+  gradient_checkpointing_encoder: True  # Enable gradient checkpointing for encoder
+  gradient_checkpointing_encoder_last_only: False  # Only checkpoint last encoder layer
+  gradient_checkpointing_decoder: True  # Enable gradient checkpointing for decoder
+
+augmentation:
+  # SpecAugment: Time/frequency masking on mel spectrograms
+  spec_augment:
+    apply: True  # Enable SpecAugment
+    time_mask_param: 100  # Maximum time mask length
+    p: 1.0  # Probability of applying augmentation
+    freq_mask_param: 43  # Maximum frequency mask length
+    time_warp_w: 80  # Time warp parameter
+  
+  # Deep SpecAugment: Apply augmentation inside encoder layers
+  deep_spec_augment:
+    apply: True  # Enable deep SpecAugment
+    time_mask_param: 100  # Maximum time mask length
+    freq_mask_param: 27  # Maximum frequency mask length
+    layer_indices: null  # Which encoder layers to augment (null = all except last)
+  
+  bpe_dropout: 0.1  # BPE dropout rate for tokenization (0.0-1.0)
+  
+  # Extreme frequency masking: Mask high/low frequency edges
+  extremes_spec_augment:
+    apply: False  # Can lead to unstable training
+    low_freq_range: 10  # Number of low frequency bins to mask
+    high_freq_range: 20  # Number of high frequency bins to mask
+  
+  # Audio augmentation: Simulate real-world conditions
+  audio_augment:
+    apply_office_aug: True  # Apply office environment augmentation (reverb, compression)
+    apply_baseline_aug: True  # Apply baseline augmentation (noise, filters)
+
+seed: 123  # Random seed for reproducibility
+save_dir: output  # Directory to save models (will be prefixed with timestamp/job ID)
