@@ -1,5 +1,4 @@
 import argparse
-import logging
 import os
 import subprocess
 from pathlib import Path
@@ -70,7 +69,6 @@ def main_loop(
 
     min_loss, min_wer = evaluate(model, dev_loader, t_config)
     print(f"Initial loss: {min_loss}. Initial WER: {min_wer}")
-    logging.info(f"eval\t0\t{min_loss}\t{scheduler.get_last_lr()[0]}")
     wandb.log({"Initial loss": min_loss, "Initial WER": min_wer})
 
     pbar = tqdm(range(1, t_config["train_steps"] + 1))
@@ -78,14 +76,13 @@ def main_loop(
     for step in pbar:
         train_loss = train_step(model, train_iter, optimizer, scheduler, t_config)
         pbar.set_postfix({"loss": train_loss})
-        logging.info(f"train\t{step}\t{train_loss}\t{scheduler.get_last_lr()[0]}")
         wandb.log({"Learning rate": scheduler.get_last_lr()[0]})
         wandb.log({"Train loss": train_loss})  # Log training loss
         assert (
             train_loss < t_config["max_train_loss"]
         ), f"Train loss is above {t_config['max_train_loss']}, the loss is unable to converge."
 
-        if (step % t_config["val_steps"]) == 0 or step == t_config["train_steps"] + 1:
+        if (step % t_config["val_steps"]) == 0 or step == t_config["train_steps"]:
             eval_loss, eval_wer = evaluate(model, dev_loader, t_config)
             tqdm.write(f"Step {step}: validation loss={eval_loss}")
             wandb.log({"Validation loss": eval_loss, "Validation WER": eval_wer})  # Log validation loss
@@ -97,11 +94,21 @@ def main_loop(
             if t_config["save_all_checkpoints"]:
                 save_model(model, f"{save_dir}/step{step}.pt")
 
-            logging.info(f"eval\t{step}\t{eval_loss}\t{scheduler.get_last_lr()[0]}")
-
     save_model(model, f"{save_dir}/last_model.pt")
-    wandb.save(f"{save_dir}/last_model.pt")  # Save last model to wandb
-    wandb.save(f"{save_dir}/best_model.pt")  # Save best model to wandb
+    
+    # Only upload models to wandb if they are different
+    import filecmp
+    last_model_path = f"{save_dir}/last_model.pt"
+    best_model_path = f"{save_dir}/best_model.pt"
+    
+    if os.path.exists(best_model_path) and filecmp.cmp(last_model_path, best_model_path, shallow=False):
+        print("Last model and best model are identical. Uploading only best_model.pt to wandb.")
+        wandb.save(best_model_path)
+    else:
+        print("Uploading both last_model.pt and best_model.pt to wandb.")
+        wandb.save(last_model_path)
+        if os.path.exists(best_model_path):
+            wandb.save(best_model_path)
 
 
 def main(config):
@@ -131,13 +138,6 @@ def main(config):
     # Create save directory
     Path(config["save_dir"]).mkdir(parents=True, exist_ok=True)
 
-    # Save config
-    logging.basicConfig(
-        filename=f"{config['save_dir']}/model.log",
-        encoding="utf-8",
-        level=logging.DEBUG,
-        format="%(asctime)s\t%(message)s",
-    )
     # Print SLURM stuff
     # Check if the script is running on a Slurm cluster
     if "SLURM_JOB_ID" in os.environ:

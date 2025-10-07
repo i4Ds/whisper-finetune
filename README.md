@@ -20,11 +20,16 @@ This repository contains code for fine-tuning the Whisper speech-to-text model. 
    cd whisper-finetune
    ```
 
-2. Create and activate a virtual environment (strongly recommended) with Python 3.9.* and a Rust compiler available.
+2. Create and activate a virtual environment (strongly recommended) with Python 3.11 or higher.
 
 3. Install the package in editable mode:
    ```bash
    pip install -e .
+   ```
+   
+   Or using UV (recommended):
+   ```bash
+   uv pip install -e .
    ```
 
 ## Data
@@ -32,11 +37,11 @@ Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed a
 
 ## Usage
 
-1. Create a configuration file (see examples in `configs/*.yaml`)
+1. Create a configuration file (see `configs/example_config.yaml` for a fully documented example)
 
 2. Run the fine-tuning script:
    ```bash
-   python src/whisper_finetune/scripts/finetune.py --config configs/large-cv-srg-sg-corpus.yaml
+   python src/whisper_finetune/scripts/finetune.py --config configs/example_config.yaml
    ```
 
 

@@ -89,7 +89,7 @@ class AudioDataset(Dataset):
         self.apply_office_aug = apply_office_aug
         self.bpe_dropout = bpe_dropout
 
-        # Fixed
+        # Fixed because currently, it does NOT work; It makes the training unstable and the models overall just worse.
         self.aud_augment = None
 
         if spec_augment:
@@ -126,6 +126,7 @@ class AudioDataset(Dataset):
         assert np.intersect1d(self.hu_dataset.column_names, ["audio", "text", "language"]).size == 3
 
         # Some more data checks! 
+        # Often, some data is corrupted, 1-2 corrupted examples out of TB of data should not hurt training.
         self.valid_indices = []
         for i in range(len(self.hu_dataset)):
             try:
