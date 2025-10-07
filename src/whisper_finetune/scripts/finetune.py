@@ -33,7 +33,6 @@ from whisper_finetune.utils import (
     get_unique_base_path,
     handle_cuda_memory_operations,
     print_size_of_model,
-    print_trainable_parameters,
     read_config,
     set_seed,
 )

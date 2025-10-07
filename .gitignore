@@ -178,3 +178,5 @@ downloaded_models/*
 *.rtf
 *.m4a
 hf_models/*
+configs/*.yaml
+*.mp3
