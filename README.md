@@ -59,20 +59,6 @@ Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed a
    python src/whisper_finetune/scripts/finetune.py --config configs/example_config.yaml
    ```
 
-### Example: Multi-Dataset Validation
-
-```yaml
-dataset:
-  # Multiple validation datasets
-  val_datasets: 
-    - "clean_speech_dataset"
-    - "noisy_speech_dataset"
-  val_dataset_names: ["clean", "noisy"]
-  select_n_per_v_ds: [500, 500]
-```
-
-See [`MIGRATION_GUIDE.md`](MIGRATION_GUIDE.md) for upgrading existing configs.
-
 ## Testing
 
 Run the test suite to ensure everything is working:

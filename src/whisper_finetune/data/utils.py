@@ -185,7 +185,17 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
 
     for N, GROUPBYCOL, dataset_name in zip(select_n_per_ds, groupby_col, dataset_names):
         # Load
-        dataset = load_dataset(dataset_name, split=split_name)
+        dataset = load_dataset(dataset_name)
+        if split_name not in dataset:
+            print(f"Split name {split_name} not found in dataset {dataset_name}. Available splits: {list(dataset.keys())}")
+            if 'train' in dataset:
+                split_name = 'train'
+                print(f"Defaulting to 'train' split.")
+            else:
+                split_name = list(dataset.keys())[0]
+                print(f"Defaulting to first available split: {split_name}")
+        dataset = dataset[split_name]
+
         print(f"Processing dataset: {dataset_name}")
         print(f"Original dataset size: {len(dataset)}")
 
