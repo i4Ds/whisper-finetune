@@ -55,8 +55,7 @@ def download_model_from_wandb(
     if candidate is None:
         available = "\n".join(sorted(f.name for f in run.files()))
         raise FileNotFoundError(
-            f"No file ending with '{file_basename}' found in run {run_path}.\n"
-            f"Available files:\n{available}"
+            f"No file ending with '{file_basename}' found in run {run_path}.\n" f"Available files:\n{available}"
         )
 
     ensure_dir(save_dir)
@@ -87,9 +86,7 @@ def convert_to_hf_and_ct2(
     ensure_dir(hf_model_folder)
     ensure_dir(ct2_output_dir)
 
-    model, _is_multilingual, _num_languages = convert_openai_whisper_to_tfms(
-        str(checkpoint_path), str(hf_model_folder)
-    )
+    model, _is_multilingual, _num_languages = convert_openai_whisper_to_tfms(str(checkpoint_path), str(hf_model_folder))
 
     # Save README
     if readme_text:
@@ -142,14 +139,14 @@ if __name__ == "__main__":
         "i4ds/whisper4sg/runs/y109yl61",
         "i4ds/whisper4sg/runs/3g251dpa",
         "i4ds/whisper4sg/runs/4wwugkss",
-        "i4ds/whisper4sg/runs/x9aebznp"
+        "i4ds/whisper4sg/runs/x9aebznp",
     ]
     hf_repo_ids: Sequence[str] = [
         # Example: "swissnlp/daily-brook-134"  # aka HU model path
         "i4ds/smart-galaxy-136",
         "i4ds/colorful-darkness-137",
         "i4ds/astral-star-138",
-        "i4ds/clear-armadillo-139"
+        "i4ds/clear-armadillo-139",
     ]
 
     # Optional: if your last checkpoint file in W&B has a different basename
@@ -158,7 +155,7 @@ if __name__ == "__main__":
     # IO locations
     download_dir = Path("./downloaded_models")
     hf_models_root = Path("./hf_models")  # will create subfolders per name
-    ct2_root = Path("./ct2_output")       # will create subfolders per name
+    ct2_root = Path("./ct2_output")  # will create subfolders per name
 
     # Tokenizer/config source directory (choose one that matches your model)
     # Options present in this repo include: "whisper_v3_turbo_utils" or "whisper_v3_utils"
@@ -182,9 +179,7 @@ if __name__ == "__main__":
     )
 
     if not (len(wandb_runs) == len(hf_repo_ids)):
-        raise ValueError(
-            f"List lengths must match: wandb_runs={len(wandb_runs)}, hf_repo_ids={len(hf_repo_ids)}"
-        )
+        raise ValueError(f"List lengths must match: wandb_runs={len(wandb_runs)}, hf_repo_ids={len(hf_repo_ids)}")
 
     for run_path, repo in zip(wandb_runs, hf_repo_ids):
         print(f"Processing:  run={run_path}, repo={repo}")
@@ -203,11 +198,7 @@ if __name__ == "__main__":
         ct2_output_dir = ct2_root / name
 
         # Add run link into README
-        readme_text = (
-            base_readme
-            + "\n## Weights & Biases Run\n"
-            + f"https://wandb.ai/{run_path}\n"
-        )
+        readme_text = base_readme + "\n## Weights & Biases Run\n" + f"https://wandb.ai/{run_path}\n"
 
         ct2_folder = convert_to_hf_and_ct2(
             checkpoint_path=local_ckpt,

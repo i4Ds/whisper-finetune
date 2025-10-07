@@ -1,10 +1,31 @@
 import os
+
 from audiomentations import (
-    AddBackgroundNoise, OneOf, Compose, Aliasing, AddGaussianNoise, LoudnessNormalization,
-    Gain, GainTransition, BandPassFilter, BandStopFilter, AddGaussianSNR, LowPassFilter,
-    LowShelfFilter, HighPassFilter, HighShelfFilter, PitchShift, Shift, ClippingDistortion,
-    AirAbsorption, PeakingFilter, RoomSimulator, Mp3Compression, BitCrush
+    AddBackgroundNoise,
+    AddGaussianNoise,
+    AddGaussianSNR,
+    AirAbsorption,
+    Aliasing,
+    BandPassFilter,
+    BandStopFilter,
+    BitCrush,
+    ClippingDistortion,
+    Compose,
+    Gain,
+    GainTransition,
+    HighPassFilter,
+    HighShelfFilter,
+    LoudnessNormalization,
+    LowPassFilter,
+    LowShelfFilter,
+    Mp3Compression,
+    OneOf,
+    PeakingFilter,
+    PitchShift,
+    RoomSimulator,
+    Shift,
 )
+
 
 def get_audio_augments_baseline():
     current_dir = os.path.dirname(__file__)
@@ -76,16 +97,19 @@ def get_audio_augments_office():
         [
             RoomSimulator(
                 # Small-ish room (≈ 4 m × 3 m × 2.7 m)
-                min_size_x=3.0,  max_size_x=5.0,
-                min_size_y=2.5,  max_size_y=4.0,
-                min_size_z=2.4,  max_size_z=3.0,
+                min_size_x=3.0,
+                max_size_x=5.0,
+                min_size_y=2.5,
+                max_size_y=4.0,
+                min_size_z=2.4,
+                max_size_z=3.0,
                 # Carpeted surfaces → absorption 0.10-0.20  (office/library value)
                 calculation_mode="absorption",
                 min_absorption_value=0.05,
-                max_absorption_value=0.20,   # :contentReference[oaicite:0]{index=0}
+                max_absorption_value=0.20,  # :contentReference[oaicite:0]{index=0}
                 # Chop tail so clip length stays intact
                 leave_length_unchanged=True,
-                max_order=3, 
+                max_order=3,
                 p=1.0,
             ),
         ],
@@ -94,8 +118,10 @@ def get_audio_augments_office():
 
     lo_fi_codecs = OneOf(
         [
-            Mp3Compression(min_bitrate=8,  max_bitrate=64, backend="pydub", p=1.0),  # :contentReference[oaicite:1]{index=1}
-            BitCrush(min_bit_depth=6, max_bit_depth=14, p=1.0),                      # :contentReference[oaicite:2]{index=2}
+            Mp3Compression(
+                min_bitrate=8, max_bitrate=64, backend="pydub", p=1.0
+            ),  # :contentReference[oaicite:1]{index=1}
+            BitCrush(min_bit_depth=6, max_bit_depth=14, p=1.0),  # :contentReference[oaicite:2]{index=2}
         ],
         p=0.5,
     )
@@ -104,13 +130,13 @@ def get_audio_augments_office():
 
 
 if __name__ == "__main__":
-    import soundfile as sf
-    import librosa
     import argparse
     from pathlib import Path
-    parser = argparse.ArgumentParser(
-        description="Apply random audiomentations to a single file"
-    )
+
+    import librosa
+    import soundfile as sf
+
+    parser = argparse.ArgumentParser(description="Apply random audiomentations to a single file")
     parser.add_argument("infile", type=Path, help="Input audio file (wav/mp3/…)")
     parser.add_argument(
         "--out",

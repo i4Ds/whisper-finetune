@@ -5,16 +5,24 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 import torchaudio.transforms as T
+from audiomentations import Compose
 from datasets import Dataset as HU_Dataset
 from numpy import ndarray
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
-from audiomentations import Compose
 
-from whisper_finetune.data.utils import TimeWarpAugmenter, ExtremesFrequencyMasking, pad_or_trim
-from whisper_finetune.model.augment import get_audio_augments_baseline, get_audio_augments_office
+from whisper_finetune.data.utils import (
+    ExtremesFrequencyMasking,
+    TimeWarpAugmenter,
+    pad_or_trim,
+)
+from whisper_finetune.model.augment import (
+    get_audio_augments_baseline,
+    get_audio_augments_office,
+)
+
 
 @dataclass
 class Record:
@@ -103,8 +111,8 @@ class AudioDataset(Dataset):
 
         if extremes_spec_augment:
             self.extreme_freq_masking = ExtremesFrequencyMasking(
-                low_freq_range=extremes_spec_augment_params['low_freq_range'], 
-                high_freq_range=extremes_spec_augment_params['high_freq_range']
+                low_freq_range=extremes_spec_augment_params["low_freq_range"],
+                high_freq_range=extremes_spec_augment_params["high_freq_range"],
             )
         else:
             self.extreme_freq_masking = None
@@ -125,7 +133,7 @@ class AudioDataset(Dataset):
         # Some checks
         assert np.intersect1d(self.hu_dataset.column_names, ["audio", "text", "language"]).size == 3
 
-        # Some more data checks! 
+        # Some more data checks!
         # Often, some data is corrupted, 1-2 corrupted examples out of TB of data should not hurt training.
         self.valid_indices = []
         for i in range(len(self.hu_dataset)):
@@ -303,7 +311,9 @@ class AudioDataset(Dataset):
             print(f"Mel shape: {mel.shape}")
             print(f"Decoder input: {decoder_input}")
             print(f"Decoder output: {decoder_output}")
-            print(f"Mel Spectrogram stats: mean={mel.mean()}, std={mel.std()}, min={mel.min()}, max={mel.max()}. N NANs: {torch.isnan(mel).sum()}")
+            print(
+                f"Mel Spectrogram stats: mean={mel.mean()}, std={mel.std()}, min={mel.min()}, max={mel.max()}. N NANs: {torch.isnan(mel).sum()}"
+            )
 
         return (
             mel,
@@ -339,7 +349,7 @@ def get_dataloader(
     extremes_spec_augment_params: Optional[dict] = None,
     apply_baseline_aug: bool = False,
     apply_office_aug: bool = False,
-    bpe_dropout: float = 0.0
+    bpe_dropout: float = 0.0,
 ) -> DataLoader:
     print(f"Found {len(hu_dataset)} records in the dataset.")
     dataset = AudioDataset(
@@ -357,7 +367,7 @@ def get_dataloader(
         extremes_spec_augment_params=extremes_spec_augment_params,
         apply_baseline_aug=apply_baseline_aug,
         apply_office_aug=apply_office_aug,
-        bpe_dropout=bpe_dropout
+        bpe_dropout=bpe_dropout,
     )
     return DataLoader(
         dataset,

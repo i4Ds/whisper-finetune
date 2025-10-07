@@ -196,8 +196,7 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
         # Ensure 'language' column exists
         if "language" not in dataset.column_names:
             dataset = dataset.map(
-                add_fixed_value, batched=True,
-                fn_kwargs={"col_name": "language", "fixed_value": "de"}
+                add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
             )
 
         # Sampling
@@ -226,7 +225,6 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
     concatenated = concatenate_datasets(processed_datasets)
     print(f"Total rows in concatenated dataset: {len(concatenated)}")
     return concatenated
-
 
 
 def add_fixed_value(batch, col_name, fixed_value):

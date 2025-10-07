@@ -180,3 +180,4 @@ downloaded_models/*
 hf_models/*
 configs/*.yaml
 *.mp3
+.vscode/*

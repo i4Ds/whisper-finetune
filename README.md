@@ -5,12 +5,27 @@
 
 This repository contains code for fine-tuning the Whisper speech-to-text model. It utilizes Weights & Biases (wandb) for logging metrics and storing models. Key features include:
 
+- **Multi-Dataset Validation** 🆕 - Evaluate on multiple validation sets simultaneously with macro averaging
+- **Comprehensive Metrics** 🆕 - WER, CER, NLL, log-probability, entropy, and calibration (ECE)
+- **Production-Ready Tests** 🆕 - Fast unit tests with pytest
 - Timestamp training
 - Prompt training
 - Stochastic depth implementation for improved model generalization
 - Correct implementation of SpecAugment for robust audio data augmentation
 - Checkpointing functionality to save and resume training progress, crucial for handling long-running experiments and potential interruptions
 - Integration with Weights & Biases (wandb) for experiment tracking and model versioning
+
+## What's New
+
+### Multi-Dataset Validation System
+Evaluate your model on multiple validation datasets (e.g., clean speech, noisy environments, different microphones) with comprehensive metrics beyond WER:
+
+- **6 metrics per dataset**: WER, CER, NLL, log-prob, entropy, ECE
+- **Macro averaging**: Unweighted mean across datasets (each dataset contributes equally)
+- **Per-utterance tracking**: Detailed metrics for in-depth analysis
+- **Smart checkpointing**: All models saved locally, manual W&B upload to avoid clutter
+
+See [`docs/MULTI_DATASET_VALIDATION.md`](docs/MULTI_DATASET_VALIDATION.md) for details or [`QUICK_REFERENCE.md`](QUICK_REFERENCE.md) for a quick start.
 
 ## Installation
 
@@ -44,6 +59,36 @@ Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed a
    python src/whisper_finetune/scripts/finetune.py --config configs/example_config.yaml
    ```
 
+### Example: Multi-Dataset Validation
+
+```yaml
+dataset:
+  # Multiple validation datasets
+  val_datasets: 
+    - "clean_speech_dataset"
+    - "noisy_speech_dataset"
+  val_dataset_names: ["clean", "noisy"]
+  select_n_per_v_ds: [500, 500]
+```
+
+See [`MIGRATION_GUIDE.md`](MIGRATION_GUIDE.md) for upgrading existing configs.
+
+## Testing
+
+Run the test suite to ensure everything is working:
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run with verbose output and coverage
+pytest -v --cov=whisper_finetune
+```
+
+See [`tests/README.md`](tests/README.md) for more details.
 
 ## Deployment
 We suggest to use [faster-whisper](https://github.com/SYSTRAN/faster-whisper). To convert your fine-tuned model, you can use the script located at `src/whisper_finetune/scripts/convert_c2t.py`. 
@@ -53,6 +98,14 @@ Further improvement of quality can be archieved by serving the requests with [wh
 ## Configuration
 
 Modify the YAML files in the `configs/` directory to customize your fine-tuning process. Refer to the existing configuration files for examples of available options.
+
+## Documentation
+
+- **[Multi-Dataset Validation Guide](docs/MULTI_DATASET_VALIDATION.md)** - Complete guide to validation system
+- **[Quick Reference](QUICK_REFERENCE.md)** - Cheat sheet for metrics and commands
+- **[Migration Guide](MIGRATION_GUIDE.md)** - Upgrade from single to multi-dataset validation
+- **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** - What was implemented and why
+- **[Test Documentation](tests/README.md)** - How to run and write tests
 
 ## Thank you
 

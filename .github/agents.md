@@ -649,7 +649,9 @@ LR
 | Main training loop | `scripts/finetune.py` | `main_loop()`, `main()` |
 | Model loading | `model/model_utils.py` | `load_model_and_set_heads()` |
 | Training step | `model/model_utils.py` | `train_step()` |
-| Evaluation | `model/model_utils.py` | `evaluate()` |
+| Evaluation (multi-dataset) | `eval/evaluator.py` | `evaluate_multiple_datasets()` |
+| Evaluation (single dataset) | `eval/evaluator.py` | `evaluate_single_dataset()` |
+| Metrics computation | `eval/metrics.py` | `compute_*()` functions |
 | Dataset class | `data/data_loader.py` | `AudioDataset` |
 | Data augmentation | `model/augment.py` | `get_audio_augments_*()` |
 | SpecAugment | `data/data_loader.py` | `AudioDataset._calculate_mel()` |
@@ -657,7 +659,6 @@ LR
 | Stochastic depth | `model/model_utils.py` | `CheckpointedStochastic*` classes |
 | Optimizer setup | `model/optimizer.py` | `get_optimizer()` |
 | LR scheduler | `model/scheduler.py` | `get_scheduler()` |
-| WER computation | `eval/wer.py` | `WER` class |
 | Text normalization | `eval/utils.py` | `normalize_text()` |
 | Config loading | `utils.py` | `read_config()` |
 | Data sampling | `data/utils.py` | `process_dataset()` |

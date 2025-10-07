@@ -27,18 +27,11 @@ import torch
 from huggingface_hub.utils import insecure_hashlib
 from torch import nn
 from tqdm import tqdm
-
 from transformers import (
     GenerationConfig,
     WhisperConfig,
-    WhisperFeatureExtractor,
     WhisperForConditionalGeneration,
-    WhisperProcessor,
-    WhisperTokenizer,
-    WhisperTokenizerFast,
 )
-from transformers.models.whisper.tokenization_whisper import LANGUAGES, bytes_to_unicode
-from transformers.utils.import_utils import _is_package_available
 
 
 _MODELS = {
@@ -53,12 +46,6 @@ _MODELS = {
     "large": "https://openaipublic.azureedge.net/main/whisper/models/e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a/large.pt",
     "large-v2": "https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt",
     "large-v3": "https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb/large-v3.pt",
-}
-
-
-_TOKENIZERS = {
-    "multilingual": "https://raw.githubusercontent.com/openai/whisper/main/whisper/assets/multilingual.tiktoken",
-    "english": "https://raw.githubusercontent.com/openai/whisper/main/whisper/assets/gpt2.tiktoken",
 }
 
 
@@ -249,21 +236,3 @@ def convert_openai_whisper_to_tfms(
     )
 
     return model, is_multilingual, num_languages
-
-
-# Adapted from https://github.com/openai/tiktoken/issues/60#issuecomment-1499977960
-def _bpe(mergeable_ranks, token: bytes, max_rank=None) -> List[bytes]:
-    parts = [bytes([b]) for b in token]
-    while True:
-        min_idx = None
-        min_rank = None
-        for i, pair in enumerate(zip(parts[:-1], parts[1:])):
-            rank = mergeable_ranks.get(pair[0] + pair[1])
-            if rank is not None and (min_rank is None or rank < min_rank):
-                min_idx = i
-                min_rank = rank
-        if min_rank is None or (max_rank is not None and min_rank >= max_rank):
-            break
-        assert min_idx is not None
-        parts = parts[:min_idx] + [parts[min_idx] + parts[min_idx + 1]] + parts[min_idx + 2 :]
-    return parts
