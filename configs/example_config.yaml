@@ -21,6 +21,10 @@ dataset:
   # Validation datasets: Can be HuggingFace dataset names or local paths
   val_datasets: [dataset1, dataset2, dataset3]
   
+  # Optional: Custom names for validation datasets (for logging purposes)
+  # If not specified, will use "dataset_0", "dataset_1", etc.
+  val_dataset_names: ["in_domain", "alt_mic", "noisy_env"]
+  
   # How many samples to select from each validation dataset
   select_n_per_v_ds: [500, 500, 500]
   

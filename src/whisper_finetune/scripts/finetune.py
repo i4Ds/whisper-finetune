@@ -14,10 +14,13 @@ from whisper.tokenizer import get_tokenizer
 
 from whisper_finetune.data.data_loader import get_dataloader
 from whisper_finetune.data.utils import process_dataset
+from whisper_finetune.eval.evaluator import (
+    evaluate_multiple_datasets,
+    log_metrics_to_wandb,
+)
 from whisper_finetune.model.model_utils import (
     CheckpointedStochasticAudioEncoder,
     CheckpointedStochasticTextDecoder,
-    evaluate,
     infinite_iter,
     load_model_and_set_heads,
     register_deep_spec_augment_hooks,
@@ -43,7 +46,7 @@ ENABLE_MEMORY_PROFILING = False
 def main_loop(
     model: WhisperModel,
     train_loader: DataLoader,
-    dev_loader: DataLoader,
+    dev_loaders: dict,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler.LambdaLR,
     save_dir: str,
@@ -55,7 +58,7 @@ def main_loop(
     Parameters:
         model (WhisperModel): The Whisper model to be trained.
         train_loader (DataLoader): DataLoader for the training set.
-        dev_loader (DataLoader): DataLoader for the development set.
+        dev_loaders (dict): Dictionary of DataLoaders for validation datasets (dataset_name -> DataLoader).
         optimizer (torch.optim.Optimizer): Optimizer for model training.
         scheduler (torch.optim.lr_scheduler.LambdaLR): Learning rate scheduler.
         save_dir (str): Directory to save the trained model.
@@ -66,9 +69,13 @@ def main_loop(
     """
     wandb.watch(model, log="all")
 
-    min_loss, min_wer = evaluate(model, dev_loader, t_config)
-    print(f"Initial loss: {min_loss}. Initial WER: {min_wer}")
-    wandb.log({"Initial loss": min_loss, "Initial WER": min_wer})
+    # Initial evaluation with new multi-dataset evaluator
+    print("\nRunning initial evaluation...")
+    dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config)
+    min_wer = macro_metrics["macro_wer"]
+
+    print(f"Initial Macro WER: {min_wer:.4f}")
+    log_metrics_to_wandb(dataset_metrics, macro_metrics, step=0, prefix="val")
 
     pbar = tqdm(range(1, t_config["train_steps"] + 1))
     train_iter = infinite_iter(train_loader)
@@ -82,24 +89,31 @@ def main_loop(
         ), f"Train loss is above {t_config['max_train_loss']}, the loss is unable to converge."
 
         if (step % t_config["val_steps"]) == 0 or step == t_config["train_steps"]:
-            eval_loss, eval_wer = evaluate(model, dev_loader, t_config)
-            tqdm.write(f"Step {step}: validation loss={eval_loss}")
-            wandb.log({"Validation loss": eval_loss, "Validation WER": eval_wer})  # Log validation loss
+            # Evaluate on all validation datasets
+            dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config)
+            eval_wer = macro_metrics["macro_wer"]
 
+            tqdm.write(f"Step {step}: Macro WER={eval_wer:.4f}")
+            log_metrics_to_wandb(dataset_metrics, macro_metrics, step=step, prefix="val")
+
+            # Save best model based on macro WER
             if eval_wer < min_wer:
                 min_wer = eval_wer
                 save_model(model, f"{save_dir}/best_model.pt")
+                print(f"  → Saved new best model (WER: {min_wer:.4f})")
 
+            # Always save checkpoint locally (but don't upload to wandb yet)
             if t_config["save_all_checkpoints"]:
                 save_model(model, f"{save_dir}/step{step}.pt")
 
     save_model(model, f"{save_dir}/last_model.pt")
-    
+
     # Only upload models to wandb if they are different
     import filecmp
+
     last_model_path = f"{save_dir}/last_model.pt"
     best_model_path = f"{save_dir}/best_model.pt"
-    
+
     if os.path.exists(best_model_path) and filecmp.cmp(last_model_path, best_model_path, shallow=False):
         print("Last model and best model are identical. Uploading only best_model.pt to wandb.")
         wandb.save(best_model_path)
@@ -212,9 +226,9 @@ def main(config):
         dconf = config["augmentation"]["deep_spec_augment"]
         register_deep_spec_augment_hooks(
             whisper_model,
-            time_mask_param=dconf['time_mask_param'],
-            freq_mask_param=dconf['freq_mask_param'],
-            layer_indices=dconf['layer_indices']
+            time_mask_param=dconf["time_mask_param"],
+            freq_mask_param=dconf["freq_mask_param"],
+            layer_indices=dconf["layer_indices"],
         )
 
     # Get datasets
@@ -226,13 +240,39 @@ def main(config):
         ds_config["groupby_col"],
     )
 
-    # Process validation datasets
-    val_dataset = process_dataset(
-        ds_config["val_datasets"],
-        ds_config["select_n_per_v_ds"],
-        ds_config["valid_split_name"],
-        ds_config["groupby_col"],
-    )
+    # Process validation datasets - now supports multiple named datasets
+    # Ensure val_datasets is always a list (wrap single string in list)
+    val_datasets_config = ds_config.get("val_datasets", [])
+    if isinstance(val_datasets_config, str):
+        val_datasets_config = [val_datasets_config]
+    
+    val_dataset_names = ds_config.get("val_dataset_names", None)
+
+    # Auto-generate names if not specified
+    if val_dataset_names is None:
+        val_dataset_names = []
+        for val_ds in val_datasets_config:
+            # If dataset has a /, split and take the part after the last /
+            if "/" in val_ds:
+                name = val_ds.split("/")[-1]
+            else:
+                name = val_ds
+            val_dataset_names.append(name)
+
+    # Create a dictionary of validation datasets
+    val_datasets_dict = {}
+    # Process each validation dataset separately
+    for i, (val_ds, val_name) in enumerate(zip(val_datasets_config, val_dataset_names)):
+        select_n = ds_config["select_n_per_v_ds"][i] if i < len(ds_config["select_n_per_v_ds"]) else None
+        groupby = ds_config["groupby_col"][i] if i < len(ds_config.get("groupby_col", [])) else None
+
+        val_dataset = process_dataset(
+            [val_ds],
+            [select_n] if select_n is not None else [None],
+            ds_config["valid_split_name"],
+            [groupby] if groupby is not None else [None],
+        )
+        val_datasets_dict[val_name] = val_dataset
 
     # Calculate steps
     config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)
@@ -262,16 +302,20 @@ def main(config):
         apply_office_aug=config["augmentation"]["audio_augment"]["apply_office_aug"],
         bpe_dropout=config["augmentation"]["bpe_dropout"],
     )
-    val_loader = get_dataloader(
-        hu_dataset=val_dataset,
-        tokenizer=tokenizer,
-        n_mels=128 if "v3" in config["model"]["init_name"] else 80,
-        batch_size=config["dataset"]["batch_size_eval"],
-        no_timestamp_training=True,
-        prompt_use_rate=0,
-        no_timestamps_rate=0,
-        num_workers=min(os.cpu_count(), 8),
-    )
+
+    # Create multiple validation dataloaders
+    val_loaders = {}
+    for val_name, val_ds in val_datasets_dict.items():
+        val_loaders[val_name] = get_dataloader(
+            hu_dataset=val_ds,
+            tokenizer=tokenizer,
+            n_mels=128 if "v3" in config["model"]["init_name"] else 80,
+            batch_size=config["dataset"]["batch_size_eval"],
+            no_timestamp_training=True,
+            prompt_use_rate=0,
+            no_timestamps_rate=0,
+            num_workers=min(os.cpu_count(), 8),
+        )
 
     # Load optimizer
     optimizer = get_optimizer(whisper_model, config["optimizer"])
@@ -286,7 +330,7 @@ def main(config):
     wandb.init(config=config)
 
     # Train
-    main_loop(whisper_model, train_loader, val_loader, optimizer, scheduler, config["save_dir"], config["training"])
+    main_loop(whisper_model, train_loader, val_loaders, optimizer, scheduler, config["save_dir"], config["training"])
 
     # Print out peak memory stats
     peak_memory_mb = torch.cuda.max_memory_allocated("cuda") / (1024**2)  # Convert to megabytes

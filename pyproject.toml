@@ -33,6 +33,9 @@ dev = [
     "isort>=5.10.1",
     "black>=23.1.0",
     "flake8>=6.0.0",
+    # Testing
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
 ]
 
 [build-system]
@@ -49,3 +52,17 @@ line_length = 120
 # https://pycqa.github.io/isort/
 profile = "black"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--strict-markers",
+    "--tb=short",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]

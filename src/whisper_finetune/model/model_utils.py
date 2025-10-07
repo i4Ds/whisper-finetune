@@ -7,18 +7,17 @@ from typing import Callable, Iterator, Optional, Union
 
 import torch
 import torch.nn.functional as F
+import torchaudio.transforms as T
 import wandb
 from torch import Tensor
 from torch.utils.checkpoint import checkpoint
 from torch.utils.data import DataLoader
-import torchaudio.transforms as T
 from tqdm import tqdm
 from whisper import _ALIGNMENT_HEADS, _MODELS, _download, available_models
 from whisper.model import AudioEncoder, TextDecoder, Whisper
 from whisper.tokenizer import get_tokenizer
 
 from whisper_finetune.eval.utils import VOCAB_SPECS, normalize_text
-from whisper_finetune.eval.wer import WER
 
 
 def train_step(
@@ -86,103 +85,19 @@ def train_step(
         scale_before = scaler.get_scale()
         wandb.log({"scale": scale_before})
         scaler.step(optimizer)
-        if scale_before <= scaler.get_scale(): # If the scale has stayed the same or increased (which is good, means it's stable), then step the scheduler.
+        if (
+            scale_before <= scaler.get_scale()
+        ):  # If the scale has stayed the same or increased (which is good, means it's stable), then step the scheduler.
             # If this is not the case, scaler.step(optimizer) also didn't happen.
             lr_scheduler.step()
         scaler.update()
     else:
         optimizer.step()
         lr_scheduler.step()
-        
-    
+
     optimizer.zero_grad()
 
     return total_loss
-
-
-@torch.no_grad()
-def evaluate(model: Whisper, dev_loader: DataLoader, t_config: dict) -> float:
-    model.eval()
-    total_loss = 0.0
-    pred_sentences, true_sentences = [], []
-
-    # Read variables from t_config
-    mixed_precision_training = t_config["mixed_precision_training"]
-    mp_dtype = torch.float16 if t_config["mp_dtype"] == "fp16" else torch.bfloat16
-
-    # Get tokenizer & eval metric
-    tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
-
-    wer = WER()
-
-    for x, y_in, y_out in tqdm(dev_loader):
-        x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
-        with torch.autocast(device_type="cuda", enabled=mixed_precision_training, dtype=mp_dtype):
-            logits = model(x, y_in)
-
-            loss = F.cross_entropy(logits.transpose(1, 2), y_out)
-
-            # Convert logits to token IDs
-            pred_token_ids = torch.argmax(logits, dim=-1)
-
-            # Filter out -100 values, special tokens and decode.
-            batch_pred = [
-                tokenizer.decode(
-                    [id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]
-                )
-                for ids in pred_token_ids
-            ]
-            batch_true = [
-                tokenizer.decode(
-                    [id for id in ids.cpu().tolist() if id not in tokenizer.special_tokens.values() and id != -100]
-                )
-                for ids in y_out
-            ]
-
-            # Normalize and filter out empty sentences in the reference
-            mask = [True if x != "" else False for x in batch_true]
-            batch_pred = [normalize_text(x, **VOCAB_SPECS["v0"]) for x, m in zip(batch_pred, mask) if m]
-            batch_true = [normalize_text(x, **VOCAB_SPECS["v0"]) for x, m in zip(batch_true, mask) if m]
-
-            # Append
-            pred_sentences.extend(batch_pred)
-            true_sentences.extend(batch_true)
-
-        # Check loss for NANs
-        if torch.isnan(loss).any():
-            nan_mask = torch.isnan(loss)
-            for idx, has_nan in enumerate(nan_mask):
-                if has_nan:
-                    error_sample_pred = batch_pred[idx]
-                    error_sample_true = batch_true[idx]
-
-                    # Detach, move to CPU, and convert to numpy for logging
-                    x_logged = x[idx].detach().cpu().numpy() if x[idx].requires_grad else x[idx].cpu().numpy()
-                    y_out_logged = (
-                        y_out[idx].detach().cpu().numpy() if y_out[idx].requires_grad else y_out[idx].cpu().numpy()
-                    )
-
-                    wandb.log(
-                        {
-                            "error_sample_idx": idx,
-                            "error_sample_pred": error_sample_pred,
-                            "error_sample_true": error_sample_true,
-                            # Depending on the shape and data, you might log directly or use a visualization method
-                            "x_sample": x_logged,
-                            "y_sample": y_out_logged,
-                        }
-                    )
-                    raise Exception("Aborting because of NANs in validation loss.")
-        else:
-            total_loss += loss.item()
-
-    wer = wer._compute(
-        predictions=pred_sentences,
-        references=true_sentences,
-    )
-
-    del x, y_in, y_out, pred_sentences, true_sentences, batch_pred, batch_true
-    return total_loss / len(dev_loader), wer
 
 
 def save_model(model: Whisper, save_path: str) -> None:
@@ -203,17 +118,17 @@ class StochasticDepthMixin:
     Mixin class providing stochastic depth functionality with gradient checkpointing.
     See: https://arxiv.org/abs/1603.09382
     """
-    
+
     def stochastic_depth(self, x: Tensor, layer: Callable[[Tensor], Tensor], p: float) -> Tensor:
         """
         Apply stochastic depth: randomly skip a layer during training with probability p.
         Uses gradient checkpointing to save memory.
-        
+
         Args:
             x: Input tensor
             layer: Layer function to apply
             p: Probability of skipping the layer during training
-            
+
         Returns:
             Output tensor (either skipped or after applying the layer)
         """
@@ -349,8 +264,8 @@ def register_deep_spec_augment_hooks(
             # output here is normalized: shape (batch, seq_len, embed_dim)
             # Convert to (batch, embed_dim, seq_len) for masking
             x = output.permute(0, 2, 1)
-            x = time_mask(x)        # time masking on normalized features
-            x = freq_mask(x)        # frequency masking on normalized features
+            x = time_mask(x)  # time masking on normalized features
+            x = freq_mask(x)  # frequency masking on normalized features
             return x.permute(0, 2, 1)
         return output
 
