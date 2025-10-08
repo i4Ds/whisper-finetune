@@ -96,10 +96,6 @@ class AudioDataset(Dataset):
         self.apply_baseline_aug = apply_baseline_aug
         self.apply_office_aug = apply_office_aug
         self.bpe_dropout = bpe_dropout
-
-        # Fixed because currently, it does NOT work; It makes the training unstable and the models overall just worse.
-        self.aud_augment = None
-
         if spec_augment:
             self.time_masking = T.TimeMasking(time_mask_param=spec_augment_params["time_mask_param"])
             self.freq_masking = T.FrequencyMasking(freq_mask_param=spec_augment_params["freq_mask_param"])
@@ -123,6 +119,8 @@ class AudioDataset(Dataset):
             if self.apply_office_aug:
                 aud_aug.append(get_audio_augments_office())
             self.aud_augment = Compose(aud_aug)
+        else:
+            self.aud_augment = None
 
         self.num_frames_per_second = N_FRAMES / CHUNK_LENGTH
         # timestamps tokens are from <|0.00|> to <|30.00|> with a step of 0.02
