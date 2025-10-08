@@ -42,7 +42,7 @@ See [`docs/MULTI_DATASET_VALIDATION.md`](docs/MULTI_DATASET_VALIDATION.md) for d
    pip install -e .
    ```
    
-   Or using UV (recommended):
+   Or using UV (very strongly recommended):
    ```bash
    uv pip install -e .
    ```
