@@ -604,42 +604,6 @@ For improved quality, serve with [WhisperX](https://github.com/m-bain/whisperX):
 
 ### Learning Rate Schedules
 
-#### Linear with Warmup
-```
-LR
-│     ┌─────────────────────────────────
-│    ╱
-│   ╱
-│  ╱
-│ ╱
-└────────────────────────────────────── Steps
- warmup    constant
-```
-
-#### Cosine with Warmup
-```
-LR
-│     ╭──╮
-│    ╱    ╲
-│   ╱      ╲
-│  ╱        ╲___
-│ ╱             ╲___
-└────────────────────────────────────── Steps
- warmup      cosine decay
-```
-
-#### Cosine with Restarts
-```
-LR
-│  ╭─╮ ╭─╮ ╭─╮
-│ ╱  ╲╱  ╲╱  ╲
-│╱           ╲
-└────────────────────────────────────── Steps
-  cycle1 cycle2 cycle3
-```
-
----
-
 ## Code Locations Reference
 
 ### Where is...?
@@ -662,18 +626,6 @@ LR
 | Text normalization | `eval/utils.py` | `normalize_text()` |
 | Config loading | `utils.py` | `read_config()` |
 | Data sampling | `data/utils.py` | `process_dataset()` |
-
----
-
-## Contact & Support
-
-**Maintainer:** Vincenzo Timmel (vincenzo.timmel@fhnw.ch)  
-**Developers:**
-- Vincenzo Timmel (vincenzo.timmel@fhnw.ch)
-- Claudio Paonessa (claudio.paonessa@fhnw.ch)
-
-**Issues:** [GitHub Issues](https://github.com/i4ds/whisper-finetune/issues)  
-**License:** MIT
 
 ---
 
