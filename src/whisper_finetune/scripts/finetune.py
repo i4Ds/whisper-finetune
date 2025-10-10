@@ -147,7 +147,7 @@ def main(config):
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("high")
 
-    config["save_dir"] = get_unique_base_path() + "_" + config["save_dir"]
+    config["save_dir"] = os.path.join(config["save_dir"], get_unique_base_path())
 
     # Create save directory
     Path(config["save_dir"]).mkdir(parents=True, exist_ok=True)
@@ -342,7 +342,6 @@ def main(config):
     if ENABLE_MEMORY_PROFILING:
         handle_cuda_memory_operations(config)
 
-    wandb.finish()
 
 
 if __name__ == "__main__":
