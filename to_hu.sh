@@ -8,9 +8,6 @@ MODEL_DIR="58434435_/scicore/home/graber0001/GROUP/stt/data_nobackup/whisper/tra
 REPO_NAME="worthy-sea-158"                   # Change to your desired repo name
 ORG="i4ds"
 
-# Login to Hugging Face CLI
-huggingface-cli login --token "$HF_TOKEN"
-
 # Create a new private repo under the organization
 huggingface-cli repo create "$REPO_NAME" --organization "$ORG" --private
 
