@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # Define the datasets to download
-DATASET_NAMES=("i4ds/srg_v3_real_pl_train" "i4ds/srg_v3_real_pl_valid")
+DATASET_NAMES=(
+    "i4ds/srg_v3_pl_valid"
+)
+
 
 # Get env variables
 export $(cat .env | xargs)
