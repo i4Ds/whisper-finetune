@@ -184,6 +184,11 @@ def main(config):
         whisper_model.is_bfloat = False
 
     # If gradient checkpointing is enabled, wrap the model with checkpointing
+    # Important: When doing encoder/decoder-only training, stochastic depth should only
+    # be applied to the part being trained. Set stochastic_depth=0.0 for frozen components.
+    encoder_stochastic_depth = 0.0 if config["training"]["train_only_decoder"] else config["training"]["stochastic_depth"]
+    decoder_stochastic_depth = 0.0 if config["training"]["train_only_encoder"] else config["training"]["stochastic_depth"]
+    
     if config["training"]["gradient_checkpointing_encoder"]:
         del whisper_model.encoder
         if config["training"]["gradient_checkpointing_encoder_last_only"]:
@@ -197,7 +202,7 @@ def main(config):
                 whisper_model.dims.n_audio_state,
                 whisper_model.dims.n_audio_head,
                 whisper_model.dims.n_audio_layer,
-                config["training"]["stochastic_depth"],
+                encoder_stochastic_depth,
             )
     if config["training"]["gradient_checkpointing_decoder"]:
         del whisper_model.decoder
@@ -207,7 +212,7 @@ def main(config):
             whisper_model.dims.n_text_state,
             whisper_model.dims.n_text_head,
             whisper_model.dims.n_text_layer,
-            config["training"]["stochastic_depth"],
+            decoder_stochastic_depth,
         )
 
     # We need to reload weights for deletected Decoder and Encoder because we need to set the heads.
