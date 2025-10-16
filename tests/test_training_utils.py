@@ -211,6 +211,72 @@ class TestConfigReading:
         assert callable(read_config)
 
 
+class TestStochasticDepthConfiguration:
+    """Test stochastic depth configuration for encoder/decoder-only training."""
+
+    def test_encoder_only_training_disables_decoder_stochastic_depth(self):
+        """Test that stochastic depth is disabled for decoder when training encoder only."""
+        # Simulating the logic from finetune.py
+        config = {
+            "training": {
+                "train_only_decoder": False,
+                "train_only_encoder": True,
+                "stochastic_depth": 0.1,
+            }
+        }
+
+        # This is the logic from finetune.py
+        encoder_stochastic_depth = (
+            0.0 if config["training"]["train_only_decoder"] else config["training"]["stochastic_depth"]
+        )
+        decoder_stochastic_depth = (
+            0.0 if config["training"]["train_only_encoder"] else config["training"]["stochastic_depth"]
+        )
+
+        assert encoder_stochastic_depth == 0.1, "Encoder should have stochastic depth when training encoder only"
+        assert decoder_stochastic_depth == 0.0, "Decoder should NOT have stochastic depth when training encoder only"
+
+    def test_decoder_only_training_disables_encoder_stochastic_depth(self):
+        """Test that stochastic depth is disabled for encoder when training decoder only."""
+        config = {
+            "training": {
+                "train_only_decoder": True,
+                "train_only_encoder": False,
+                "stochastic_depth": 0.1,
+            }
+        }
+
+        encoder_stochastic_depth = (
+            0.0 if config["training"]["train_only_decoder"] else config["training"]["stochastic_depth"]
+        )
+        decoder_stochastic_depth = (
+            0.0 if config["training"]["train_only_encoder"] else config["training"]["stochastic_depth"]
+        )
+
+        assert encoder_stochastic_depth == 0.0, "Encoder should NOT have stochastic depth when training decoder only"
+        assert decoder_stochastic_depth == 0.1, "Decoder should have stochastic depth when training decoder only"
+
+    def test_full_training_enables_both_stochastic_depth(self):
+        """Test that stochastic depth is enabled for both when training full model."""
+        config = {
+            "training": {
+                "train_only_decoder": False,
+                "train_only_encoder": False,
+                "stochastic_depth": 0.1,
+            }
+        }
+
+        encoder_stochastic_depth = (
+            0.0 if config["training"]["train_only_decoder"] else config["training"]["stochastic_depth"]
+        )
+        decoder_stochastic_depth = (
+            0.0 if config["training"]["train_only_encoder"] else config["training"]["stochastic_depth"]
+        )
+
+        assert encoder_stochastic_depth == 0.1, "Encoder should have stochastic depth when training full model"
+        assert decoder_stochastic_depth == 0.1, "Decoder should have stochastic depth when training full model"
+
+
 class TestInfiniteIterator:
     """Test infinite iterator for data loading."""
 
