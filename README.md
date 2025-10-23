@@ -83,14 +83,6 @@ Further improvement of quality can be archieved by serving the requests with [wh
 
 Modify the YAML files in the `configs/` directory to customize your fine-tuning process. Refer to the existing configuration files for examples of available options.
 
-## Documentation
-
-- **[Multi-Dataset Validation Guide](docs/MULTI_DATASET_VALIDATION.md)** - Complete guide to validation system
-- **[Quick Reference](QUICK_REFERENCE.md)** - Cheat sheet for metrics and commands
-- **[Migration Guide](MIGRATION_GUIDE.md)** - Upgrade from single to multi-dataset validation
-- **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** - What was implemented and why
-- **[Test Documentation](tests/README.md)** - How to run and write tests
-
 ## Thank you
 
 The starting point of this repository was the excellent repository by [Jumon](https://github.com/jumon) at https://github.com/jumon/whisper-finetuning
@@ -110,7 +102,7 @@ If you encounter any problems, please file an issue along with a detailed descri
 ## Developers
 
 - Vincenzo Timmel (vincenzo.timmel@fhnw.ch)
-- Claudio Paonessa (claudio.paonessa@fhnw.ch)
+- Claudio Paonessa (info@noxenum.io)
 
 ## License
 
