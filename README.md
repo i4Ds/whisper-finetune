@@ -25,8 +25,6 @@ Evaluate your model on multiple validation datasets (e.g., clean speech, noisy e
 - **Per-utterance tracking**: Detailed metrics for in-depth analysis
 - **Smart checkpointing**: All models saved locally, manual W&B upload to avoid clutter
 
-See [`docs/MULTI_DATASET_VALIDATION.md`](docs/MULTI_DATASET_VALIDATION.md) for details or [`QUICK_REFERENCE.md`](QUICK_REFERENCE.md) for a quick start.
-
 ## Installation
 
 1. Clone the repository:
