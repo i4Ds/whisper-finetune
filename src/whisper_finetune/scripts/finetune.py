@@ -27,6 +27,7 @@ from whisper_finetune.model.model_utils import (
     save_model,
     train_step,
 )
+from whisper_finetune.model.lora import apply_lora, print_lora_info
 from whisper_finetune.model.optimizer import get_optimizer
 from whisper_finetune.model.scheduler import get_scheduler
 from whisper_finetune.utils import (
@@ -226,6 +227,24 @@ def main(config):
 
     whisper_model.to("cuda")
 
+    # Apply LoRA if enabled
+    if config["model"].get("lora", False):
+        from whisper_finetune.utils import print_trainable_parameters
+        
+        print("Applying LoRA adapters...")
+        print("Before LoRA:")
+        print_trainable_parameters(whisper_model)
+        
+        apply_lora(
+            whisper_model,
+            lora_config=config["model"]["lora_config"],
+            train_only_decoder=config["training"]["train_only_decoder"],
+            train_only_encoder=config["training"]["train_only_encoder"],
+        )
+        
+        print("After LoRA:")
+        print_lora_info(whisper_model)
+
     if config["augmentation"].get("deep_spec_augment", {}).get("apply", False):
         # SpecAugment applied inside the encoder as in SpecAugment++
         # https://arxiv.org/abs/2103.16858
@@ -306,6 +325,9 @@ def main(config):
         extremes_spec_augment_params=config["augmentation"]["extremes_spec_augment"],
         apply_baseline_aug=config["augmentation"]["audio_augment"]["apply_baseline_aug"],
         apply_office_aug=config["augmentation"]["audio_augment"]["apply_office_aug"],
+        apply_advanced_aug=config["augmentation"]["audio_augment"].get("apply_advanced_aug", False),
+        time_stretch_min_rate=config["augmentation"]["audio_augment"].get("time_stretch", {}).get("min_rate", 0.8),
+        time_stretch_max_rate=config["augmentation"]["audio_augment"].get("time_stretch", {}).get("max_rate", 1.25),
         bpe_dropout=config["augmentation"]["bpe_dropout"],
     )
 
@@ -334,6 +356,12 @@ def main(config):
 
     # Wandb
     wandb.init(config=config)
+
+    slurm_job_id = os.environ.get("SLURM_JOB_ID")
+    if slurm_job_id:
+        # Make the SLURM job ID visible in the run metadata for traceability
+        wandb.config.update({"slurm_job_id": slurm_job_id}, allow_val_change=True)
+        wandb.summary["slurm_job_id"] = slurm_job_id
 
     # Train
     main_loop(whisper_model, train_loader, val_loaders, optimizer, scheduler, config["save_dir"], config["training"])

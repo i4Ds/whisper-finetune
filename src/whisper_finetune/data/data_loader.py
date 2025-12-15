@@ -19,6 +19,7 @@ from whisper_finetune.data.utils import (
     pad_or_trim,
 )
 from whisper_finetune.model.augment import (
+    get_audio_augments_advanced,
     get_audio_augments_baseline,
     get_audio_augments_office,
 )
@@ -54,6 +55,9 @@ class AudioDataset(Dataset):
         extremes_spec_augment_params: Optional[dict] = None,
         apply_baseline_aug: bool = False,
         apply_office_aug: bool = False,
+        apply_advanced_aug: bool = False,
+        time_stretch_min_rate: float = 0.8,
+        time_stretch_max_rate: float = 1.25,
         bpe_dropout: float = 0.0,
     ) -> None:
         """
@@ -74,6 +78,9 @@ class AudioDataset(Dataset):
             extremes_spec_augment_params (Optional[dict], optional): Parameters for extreme frequency masking (``low_freq_range`` and ``high_freq_range``). Defaults to None.
             apply_office_aug (bool, optional): Whether to apply office augmentation. Defaults to False.
             apply_baseline_aug (bool, optional): Whether to apply baseline augmentation. Defaults to False.
+            apply_advanced_aug (bool, optional): Whether to apply advanced augmentation (filters, pitch, gain). Defaults to False.
+            time_stretch_min_rate (float, optional): Minimum time-stretch rate. Defaults to 0.8.
+            time_stretch_max_rate (float, optional): Maximum time-stretch rate. Defaults to 1.25.
             bpe_dropout (float, optional): The rate at which to drop BPE tokens. Defaults to 0.0.
 
         Returns:
@@ -95,6 +102,9 @@ class AudioDataset(Dataset):
         self.extremes_spec_augment = extremes_spec_augment
         self.apply_baseline_aug = apply_baseline_aug
         self.apply_office_aug = apply_office_aug
+        self.apply_advanced_aug = apply_advanced_aug
+        self.time_stretch_min_rate = time_stretch_min_rate
+        self.time_stretch_max_rate = time_stretch_max_rate
         self.bpe_dropout = bpe_dropout
         if spec_augment:
             self.time_masking = T.TimeMasking(time_mask_param=spec_augment_params["time_mask_param"])
@@ -112,12 +122,17 @@ class AudioDataset(Dataset):
             )
         else:
             self.extreme_freq_masking = None
-        if self.apply_office_aug or self.apply_baseline_aug:
+        if self.apply_office_aug or self.apply_baseline_aug or self.apply_advanced_aug:
             aud_aug = []
             if self.apply_baseline_aug:
-                aud_aug.append(get_audio_augments_baseline())
+                aud_aug.append(get_audio_augments_baseline(
+                    min_rate=self.time_stretch_min_rate,
+                    max_rate=self.time_stretch_max_rate
+                ))
             if self.apply_office_aug:
                 aud_aug.append(get_audio_augments_office())
+            if self.apply_advanced_aug:
+                aud_aug.append(get_audio_augments_advanced())
             self.aud_augment = Compose(aud_aug)
         else:
             self.aud_augment = None
@@ -345,6 +360,9 @@ def get_dataloader(
     extremes_spec_augment_params: Optional[dict] = None,
     apply_baseline_aug: bool = False,
     apply_office_aug: bool = False,
+    apply_advanced_aug: bool = False,
+    time_stretch_min_rate: float = 0.8,
+    time_stretch_max_rate: float = 1.25,
     bpe_dropout: float = 0.0,
 ) -> DataLoader:
     print(f"Found {len(hu_dataset)} records in the dataset.")
@@ -363,6 +381,9 @@ def get_dataloader(
         extremes_spec_augment_params=extremes_spec_augment_params,
         apply_baseline_aug=apply_baseline_aug,
         apply_office_aug=apply_office_aug,
+        apply_advanced_aug=apply_advanced_aug,
+        time_stretch_min_rate=time_stretch_min_rate,
+        time_stretch_max_rate=time_stretch_max_rate,
         bpe_dropout=bpe_dropout,
     )
     return DataLoader(

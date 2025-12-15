@@ -107,6 +107,7 @@ whisper-finetune/
 │   │   ├── optimizer.py              # Optimizer configuration
 │   │   ├── scheduler.py              # Learning rate schedulers
 │   │   ├── augment.py                # Audio augmentation pipelines
+│   │   ├── lora.py                   # LoRA utilities for parameter-efficient fine-tuning
 │   │   └── bg_noise/                 # Background noise samples for augmentation
 │   │
 │   ├── eval/                         # Evaluation metrics
@@ -152,6 +153,15 @@ whisper-finetune/
   - Gaussian noise / SNR-based noise
   - Loudness normalization
   - Aliasing effects
+  - **TimeStretch**: Speed up/slow down audio without pitch change (0.75x-1.25x)
+
+- **Advanced Augmentation** (formerly part of baseline):
+  - Low/High/Band-pass filters
+  - Gain and gain transitions
+  - Pitch shifting
+  - Audio shifting
+  - Clipping distortion
+  - Air absorption simulation
   
 - **Office Environment Augmentation**:
   - Room simulation (carpeted office: 3-5m × 2.5-4m × 2.4-3m)
@@ -176,7 +186,34 @@ whisper-finetune/
 #### Text Augmentation
 - **BPE Dropout**: Stochastic tokenization for better generalization
 
-### 2. **Timestamp & Prompt Training**
+### 2. **LoRA (Low-Rank Adaptation)**
+
+Parameter-efficient fine-tuning using the [minLoRA](https://github.com/cccntu/minLoRA) library.
+
+#### Features
+- Apply LoRA to entire model, encoder-only, or decoder-only
+- Configurable rank, alpha, and dropout
+- Automatically freezes non-LoRA parameters
+- Dramatically reduces trainable parameters (~0.1-1% of full model)
+
+#### Configuration
+```yaml
+model:
+  lora: true
+  lora_config:
+    rank: 16          # LoRA rank (lower = fewer params)
+    lora_alpha: 32    # Scaling factor (typically 2x rank)
+    lora_dropout: 0.1 # Dropout for regularization
+```
+
+#### LoRA + Training Mode Combinations
+| `train_only_decoder` | `train_only_encoder` | LoRA Applied To |
+|---------------------|---------------------|-----------------|
+| `false` | `false` | Entire model |
+| `true` | `false` | Decoder only |
+| `false` | `true` | Encoder only |
+
+### 3. **Timestamp & Prompt Training**
 
 #### Timestamp Handling
 - Preserves temporal information in transcriptions
@@ -401,6 +438,11 @@ Output Tokens (text + timestamps)
 model:
   init_name: large-v3-turbo          # Model to fine-tune
   bfloat16: false                    # Use bfloat16 weights
+  lora: true                         # Enable LoRA fine-tuning
+  lora_config:
+    rank: 16                         # LoRA rank
+    lora_alpha: 32                   # LoRA scaling factor
+    lora_dropout: 0.1                # LoRA dropout
 
 dataset:
   train_datasets: [...]              # HF dataset names
@@ -435,8 +477,8 @@ training:
   mp_dtype: fp16                     # fp16 or bfloat16
   gradient_checkpointing_encoder: true
   gradient_checkpointing_decoder: true
-  train_only_decoder: false          # Freeze encoder
-  train_only_encoder: false          # Freeze decoder
+  train_only_decoder: false          # Freeze encoder (combine with lora for decoder-only LoRA)
+  train_only_encoder: false          # Freeze decoder (combine with lora for encoder-only LoRA)
   save_all_checkpoints: false        # Save intermediate checkpoints
   max_train_loss: 25                 # Abort if loss exceeds this
 
@@ -458,6 +500,10 @@ augmentation:
   audio_augment:
     apply_office_aug: true
     apply_baseline_aug: true
+    apply_advanced_aug: false        # Filters, pitch shifts, gain changes
+    time_stretch:                    # TimeStretch augmentation
+      min_rate: 0.75                 # 25% slower (leaves_length_unchanged=False by default)
+      max_rate: 1.25                 # 25% faster
   bpe_dropout: 0.1
 
 seed: 123
@@ -621,6 +667,7 @@ For improved quality, serve with [WhisperX](https://github.com/m-bain/whisperX):
 | SpecAugment | `data/data_loader.py` | `AudioDataset._calculate_mel()` |
 | Deep SpecAugment | `model/model_utils.py` | `register_deep_spec_augment_hooks()` |
 | Stochastic depth | `model/model_utils.py` | `CheckpointedStochastic*` classes |
+| **LoRA utilities** | `model/lora.py` | `apply_lora()`, `disable_all_but_parametrized_grads()` |
 | Optimizer setup | `model/optimizer.py` | `get_optimizer()` |
 | LR scheduler | `model/scheduler.py` | `get_scheduler()` |
 | Text normalization | `eval/utils.py` | `normalize_text()` |
@@ -642,6 +689,7 @@ For improved quality, serve with [WhisperX](https://github.com/m-bain/whisperX):
 - **SpecAugment:** [SpecAugment: A Simple Data Augmentation Method for ASR](https://arxiv.org/abs/1904.08779)
 - **SpecAugment++:** [SpecAugment++: A Hidden Space Data Augmentation Method](https://arxiv.org/abs/2103.16858)
 - **Stochastic Depth:** [Deep Networks with Stochastic Depth](https://arxiv.org/abs/1603.09382)
+- **LoRA:** [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
 
 ### Acknowledgments
 This repository was based on the excellent work by [Jumon](https://github.com/jumon) at [whisper-finetuning](https://github.com/jumon/whisper-finetuning).
