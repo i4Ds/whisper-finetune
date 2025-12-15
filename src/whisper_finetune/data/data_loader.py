@@ -150,7 +150,7 @@ class AudioDataset(Dataset):
         # Some more data checks!
         # Often, some data is corrupted, 1-2 corrupted examples out of TB of data should not hurt training.
         self.valid_indices = []
-        for i in tqdm(range(len(self.hu_dataset), desc="Validating dataset")):
+        for i in tqdm(range(len(self.hu_dataset)), desc="Validating dataset"):
             try:
                 record = self.hu_dataset[i]
                 array = record["audio"]["array"]
