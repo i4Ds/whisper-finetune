@@ -55,6 +55,7 @@ optimizer:
 
 training:
   accum_grad_steps: 4  # Gradient accumulation steps (effective batch = batch_size * accum_grad_steps)
+  label_smoothing: 0.1  # Label smoothing for cross-entropy loss (0.0-1.0)
   train_only_decoder: False  # If True, freeze encoder and only train decoder
   train_only_encoder: False  # If True, freeze decoder and only train encoder
   max_grad_norm: 1.0  # Gradient clipping threshold

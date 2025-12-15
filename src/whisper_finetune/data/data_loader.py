@@ -12,6 +12,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
+from tqdm import tqdm
 
 from whisper_finetune.data.utils import (
     ExtremesFrequencyMasking,
@@ -149,7 +150,7 @@ class AudioDataset(Dataset):
         # Some more data checks!
         # Often, some data is corrupted, 1-2 corrupted examples out of TB of data should not hurt training.
         self.valid_indices = []
-        for i in range(len(self.hu_dataset)):
+        for i in tqdm(range(len(self.hu_dataset), desc="Validating dataset")):
             try:
                 record = self.hu_dataset[i]
                 array = record["audio"]["array"]
