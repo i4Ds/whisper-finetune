@@ -1,12 +1,40 @@
 from collections import defaultdict
+from pathlib import Path
 from typing import Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from datasets import concatenate_datasets, load_dataset
+from datasets import concatenate_datasets, load_dataset, load_from_disk
 from librosa.feature.inverse import mel_to_audio
 from whisper.audio import HOP_LENGTH, N_FFT, N_SAMPLES
+
+
+def load_hf_dataset(path_or_name: str, **kwargs):
+    """
+    Load a HuggingFace dataset from either a local path or a remote hub name.
+    
+    This function automatically detects whether the provided path is a local directory
+    (using load_from_disk) or a remote dataset name (using load_dataset).
+    
+    Args:
+        path_or_name: Either a local path to a saved dataset or a HuggingFace dataset name.
+        **kwargs: Additional arguments passed to load_dataset (only used for remote datasets).
+    
+    Returns:
+        The loaded dataset (DatasetDict or Dataset).
+    
+    Examples:
+        >>> load_hf_dataset('/path/to/local/dataset')  # Local path
+        >>> load_hf_dataset('i4ds/mozilla-cv-13-long-text-de')  # Remote HuggingFace dataset
+    """
+    p = Path(path_or_name)
+    if p.exists():
+        print(f"Loading local dataset from: {path_or_name}")
+        return load_from_disk(str(p))
+    else:
+        print(f"Loading remote dataset: {path_or_name}")
+        return load_dataset(path_or_name, **kwargs)
 
 
 class TimeWarpAugmenter:
@@ -184,8 +212,8 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
         print(f"Warning! Check length of select_n_per_ds, groupby_col and dataset_names")
 
     for N, GROUPBYCOL, dataset_name in zip(select_n_per_ds, groupby_col, dataset_names):
-        # Load
-        dataset = load_dataset(dataset_name)
+        # Load - supports both local and remote datasets
+        dataset = load_hf_dataset(dataset_name)
         if split_name not in dataset:
             print(f"Split name {split_name} not found in dataset {dataset_name}. Available splits: {list(dataset.keys())}")
             if 'train' in dataset:

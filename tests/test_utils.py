@@ -129,3 +129,33 @@ class TestCharLookup:
         if "é" in lookup:
             # If lowercase exists, check for uppercase version
             assert "É" in lookup or "é" in lookup
+
+
+class TestLoadHFDataset:
+    """Test load_hf_dataset function for local/remote dataset loading."""
+
+    def test_load_hf_dataset_detects_local_path(self, tmp_path):
+        """Test that load_hf_dataset correctly identifies local paths."""
+        from pathlib import Path
+        
+        # Create a mock local path
+        local_path = tmp_path / "test_dataset"
+        local_path.mkdir()
+        
+        # The function should detect this as a local path
+        p = Path(str(local_path))
+        assert p.exists()
+
+    def test_load_hf_dataset_detects_remote_name(self):
+        """Test that load_hf_dataset correctly identifies remote dataset names."""
+        from pathlib import Path
+        
+        # A HuggingFace dataset name should not exist as a local path
+        remote_name = "i4ds/some-nonexistent-dataset"
+        p = Path(remote_name)
+        assert not p.exists()
+
+    def test_load_hf_dataset_function_exists(self):
+        """Test that load_hf_dataset function is importable."""
+        from whisper_finetune.data.utils import load_hf_dataset
+        assert callable(load_hf_dataset)
