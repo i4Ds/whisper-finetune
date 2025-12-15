@@ -6,7 +6,6 @@ using the minLoRA library.
 """
 
 from functools import partial
-from typing import Optional
 
 import torch
 from torch.nn.utils.parametrize import is_parametrized
@@ -14,21 +13,18 @@ from torch.nn.utils.parametrize import is_parametrized
 
 def disable_all_but_parametrized_grads(model: torch.nn.Module) -> None:
     """
-    Disable gradients for all parameters except those that are parametrized (i.e., LoRA layers).
+    Disable gradients for all parameters except LoRA parameters.
     
     This allows training only the LoRA adapters while keeping the base model frozen.
+    LoRA parameters are identified by having "lora" in their name.
     
     Args:
         model: The model to modify
     """
-    for _, module in model.named_modules():
-        # If the module itself is not parametrized
-        if not is_parametrized(module):
-            # Iterate over each parameter in the module
-            for param_name, param in module.named_parameters(recurse=False):
-                # Additional check if the parameter itself is parametrized
-                if not is_parametrized(module, param_name):
-                    param.requires_grad = False
+    for name, param in model.named_parameters():
+        # Keep LoRA parameters trainable, freeze everything else
+        if "lora" not in name.lower():
+            param.requires_grad = False
 
 
 def apply_lora(
