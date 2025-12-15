@@ -24,64 +24,85 @@ from audiomentations import (
     PitchShift,
     RoomSimulator,
     Shift,
+    TimeStretch,
 )
 
 
-def get_audio_augments_baseline():
+def get_audio_augments_baseline(min_rate: float = 0.8, max_rate: float = 1.25):
+    """
+    Baseline augmentation pipeline with TimeStretch only.
+    
+    Args:
+        min_rate: Minimum time-stretch rate (e.g., 0.8 = 20% slower)
+        max_rate: Maximum time-stretch rate (e.g., 1.25 = 25% faster)
+    """
+    return Compose([
+        TimeStretch(
+            min_rate=min_rate,
+            max_rate=max_rate,
+            leave_length_unchanged=False,
+            p=1.0,
+        ),
+    ])
+
+
+def get_audio_augments_advanced():
+    """
+    Advanced augmentation pipeline with background noise, filters, gain changes, 
+    pitch shifts, and other audio effects.
+    """
     current_dir = os.path.dirname(__file__)
-    augment = Compose(
-        [
-            OneOf(
-                [
-                    AddBackgroundNoise(
-                        sounds_path=os.path.join(current_dir, "bg_noise"),
-                        noise_rms="absolute",
-                        min_absolute_rms_db=-30,
-                        max_absolute_rms_db=-10,
-                    ),
-                    AddBackgroundNoise(
-                        sounds_path=os.path.join(current_dir, "bg_noise"),
-                        min_snr_db=2,
-                        max_snr_db=4,
-                    ),
-                ],
-                p=0.3,
-            ),
-            OneOf(
-                [
-                    AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.015, p=1.0),
-                    AddGaussianSNR(min_snr_db=5.0, max_snr_db=40.0, p=1.0),
-                    LoudnessNormalization(p=1.0),
-                    Aliasing(p=1.0),
-                ],
-                p=0.3,
-            ),
-            OneOf(
-                [
-                    LowPassFilter(p=1.0),
-                    LowShelfFilter(p=1.0),
-                    HighPassFilter(p=1.0),
-                    HighShelfFilter(p=1.0),
-                    BandPassFilter(p=1.0),
-                    BandStopFilter(p=1.0),
-                    ClippingDistortion(p=0.8),
-                    AirAbsorption(p=0.8),
-                    PeakingFilter(p=0.8),
-                ],
-                p=0.6,
-            ),
-            OneOf(
-                [
-                    Gain(min_gain_db=-6.0, max_gain_db=6.0, p=1.0),
-                    GainTransition(p=1.0),
-                    PitchShift(min_semitones=-4, max_semitones=4, p=0.5),
-                    Shift(p=0.5),
-                ],
-                p=0.3,
-            ),
-        ]
-    )
-    return augment
+    transforms = [
+        OneOf(
+            [
+                AddBackgroundNoise(
+                    sounds_path=os.path.join(current_dir, "bg_noise"),
+                    noise_rms="absolute",
+                    min_absolute_rms_db=-30,
+                    max_absolute_rms_db=-10,
+                ),
+                AddBackgroundNoise(
+                    sounds_path=os.path.join(current_dir, "bg_noise"),
+                    min_snr_db=2,
+                    max_snr_db=4,
+                ),
+            ],
+            p=0.3,
+        ),
+        OneOf(
+            [
+                AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.015, p=1.0),
+                AddGaussianSNR(min_snr_db=5.0, max_snr_db=40.0, p=1.0),
+                LoudnessNormalization(p=1.0),
+                Aliasing(p=1.0),
+            ],
+            p=0.3,
+        ),
+        OneOf(
+            [
+                LowPassFilter(p=1.0),
+                LowShelfFilter(p=1.0),
+                HighPassFilter(p=1.0),
+                HighShelfFilter(p=1.0),
+                BandPassFilter(p=1.0),
+                BandStopFilter(p=1.0),
+                ClippingDistortion(p=0.8),
+                AirAbsorption(p=0.8),
+                PeakingFilter(p=0.8),
+            ],
+            p=0.6,
+        ),
+        OneOf(
+            [
+                Gain(min_gain_db=-6.0, max_gain_db=6.0, p=1.0),
+                GainTransition(p=1.0),
+                PitchShift(min_semitones=-4, max_semitones=4, p=0.5),
+                Shift(p=0.5),
+            ],
+            p=0.3,
+        ),
+    ]
+    return Compose(transforms)
 
 
 def get_audio_augments_office():
@@ -160,8 +181,9 @@ if __name__ == "__main__":
 
     # ---------- augment ----------
     augment_office = get_audio_augments_office()
-    augment_baseline = get_audio_augments_baseline()
-    augment = Compose([augment_office, augment_baseline], p=1.0)
+    augment_baseline = get_audio_augments_baseline(min_rate=0.8, max_rate=1.25)
+    augment_advanced = get_audio_augments_advanced()
+    augment = Compose([augment_office, augment_baseline, augment_advanced], p=1.0)
     augmented = augment(samples=samples, sample_rate=args.sr)
 
     # ---------- save ----------
