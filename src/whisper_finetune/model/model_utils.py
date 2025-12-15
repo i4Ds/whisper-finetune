@@ -35,6 +35,7 @@ def train_step(
     accum_grad_steps = t_config["accum_grad_steps"]
     max_grad_norm = t_config["max_grad_norm"]
     mp_dtype = torch.float16 if t_config["mp_dtype"] == "fp16" else torch.bfloat16
+    label_smoothing = t_config.get("label_smoothing", 0.0)  # Label smoothing for cross-entropy
 
     # Setup grad scaler, if using fp16
     # bfloat16 is not supported by torch.cuda.amp.GradScaler: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
@@ -55,7 +56,7 @@ def train_step(
                 with torch.autocast(device_type="cuda", enabled=mixed_precision_training, dtype=mp_dtype):
                     audio_features = model.embed_audio(x)
                     logits = model.logits(y_in, audio_features=audio_features)
-                    loss = F.cross_entropy(logits.transpose(1, 2), y_out)
+                    loss = F.cross_entropy(logits.transpose(1, 2), y_out, label_smoothing=label_smoothing)
 
                     loss = loss / accum_grad_steps
                 if scaler:
