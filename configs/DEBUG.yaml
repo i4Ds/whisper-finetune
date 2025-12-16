@@ -30,7 +30,7 @@ optimizer:
     amsgrad: False
 training:
   accum_grad_steps: 4
-  label_smoothing: 0.1  # Label smoothing for cross-entropy loss
+  label_smoothing: 0.05  # Label smoothing for cross-entropy loss
   train_only_decoder: False # If true, disable the grads of the encoder
   train_only_encoder: False # If true, disable the grads of the decoder
   max_grad_norm: 1.0
