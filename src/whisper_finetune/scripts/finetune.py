@@ -225,8 +225,6 @@ def main(config):
     if config["training"]["train_only_encoder"]:
         disable_all_grads(whisper_model.decoder)
 
-    whisper_model.to("cuda")
-
     # Apply LoRA if enabled
     if config["model"].get("lora", False):
         from whisper_finetune.utils import print_trainable_parameters
@@ -244,6 +242,8 @@ def main(config):
         
         print("After LoRA:")
         print_lora_info(whisper_model)
+
+    whisper_model.to("cuda")
 
     if config["augmentation"].get("deep_spec_augment", {}).get("apply", False):
         # SpecAugment applied inside the encoder as in SpecAugment++
