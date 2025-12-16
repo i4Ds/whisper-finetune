@@ -45,10 +45,15 @@ def apply_lora(
     from minlora import LoRAParametrization, add_lora
     from whisper.model import Linear as WLinear
     
+    # Rename lora_dropout to lora_dropout_p for minlora compatibility
+    minlora_lora_config = lora_config.copy()
+    if "lora_dropout" in minlora_lora_config:
+        minlora_lora_config["lora_dropout_p"] = minlora_lora_config.pop("lora_dropout")
+    
     # Create LoRA config for minLoRA
     minlora_config = {
         WLinear: {
-            "weight": partial(LoRAParametrization.from_linear, **lora_config),
+            "weight": partial(LoRAParametrization.from_linear, **minlora_lora_config),
         },
     }
     
