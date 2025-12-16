@@ -303,7 +303,7 @@ def main(config):
     config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)
     config["training"]["val_steps"] = calculate_val_steps(config)
     if config["lr_scheduler"]["warmup_steps"] < 1.0:  # If smaller than one, assume it's a ratio.
-        config["lr_scheduler"]["warmup_steps"] = int(config["lr_scheduler"]["warmup_steps"] * len(train_dataset))
+        config["lr_scheduler"]["warmup_steps"] = int(config["lr_scheduler"]["warmup_steps"] * config["training"]["train_steps"])
 
     # Get tokenizer
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
@@ -384,6 +384,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, required=True, help="Path to the configuration YAML file")
     args = parser.parse_args()
     config = read_config(args.config)
+    config['path_to_config'] = args.config
 
     # Ensure deterministic behavior across runs
     set_seed(config["seed"])

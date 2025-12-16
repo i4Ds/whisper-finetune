@@ -26,7 +26,7 @@ def calculate_training_steps(config: Dict, train_dataset) -> int:
 
 def calculate_val_steps(config: Dict) -> int:
     val_steps = (config["training"]["train_steps"] / config["training"]["epochs"]) * config["training"]["eval_steps"]
-    return int(val_steps)
+    return max(int(val_steps), 1)
 
 
 def read_config(yaml_file_path):
