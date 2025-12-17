@@ -218,7 +218,6 @@ def log_metrics_to_wandb(
     for metric_name, metric_value in macro_metrics.items():
         log_dict[f"{prefix}/{metric_name}"] = metric_value
 
-    # Add step
-    log_dict["step"] = step
-
-    wandb.log(log_dict)
+    # Use explicit step= parameter instead of putting step in log_dict
+    # This avoids W&B step mismatch warnings
+    wandb.log(log_dict, step=step)

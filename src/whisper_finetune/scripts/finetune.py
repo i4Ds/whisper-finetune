@@ -70,6 +70,13 @@ def main_loop(
     """
     wandb.watch(model, log="all")
 
+    # Setup LoRA update tracker if this is a LoRA run
+    lora_tracker = None
+    if t_config.get("is_lora_run", False):
+        from whisper_finetune.model.lora import LoRAUpdateTracker
+        lora_tracker = LoRAUpdateTracker(model)
+        print("LoRA debug logging enabled - tracking parameter norms, gradient norms, and updates")
+
     # Initial evaluation with new multi-dataset evaluator
     print("\nRunning initial evaluation...")
     dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config)
@@ -81,15 +88,18 @@ def main_loop(
     pbar = tqdm(range(1, t_config["train_steps"] + 1))
     train_iter = infinite_iter(train_loader)
     for step in pbar:
-        train_loss = train_step(model, train_iter, optimizer, scheduler, t_config)
+        # Pass step so train_step can log LoRA debug info at eval steps
+        train_loss = train_step(model, train_iter, optimizer, scheduler, t_config, lora_tracker=lora_tracker, step=step)
         pbar.set_postfix({"loss": train_loss})
-        wandb.log({"Learning rate": scheduler.get_last_lr()[0]})
-        wandb.log({"Train loss": train_loss})  # Log training loss
+        # Use consistent step= for all wandb logs to avoid step mismatch warnings
+        wandb.log({"Learning rate": scheduler.get_last_lr()[0], "Train loss": train_loss}, step=step)
         assert (
             train_loss < t_config["max_train_loss"]
         ), f"Train loss is above {t_config['max_train_loss']}, the loss is unable to converge."
 
         if (step % t_config["val_steps"]) == 0 or step == t_config["train_steps"]:
+            # Note: LoRA debug info is logged in train_step at eval steps (captures gradients before optimizer.step)
+            
             # Evaluate on all validation datasets
             dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config)
             eval_wer = macro_metrics["macro_wer"]
@@ -174,15 +184,21 @@ def main(config):
     ## Get model
     whisper_model = whisper.load_model(config["model"]["init_name"], device="cpu")
 
-    # bfloat16 training?
+    # NOTE ON PRECISION:
+    # DO NOT manually cast the model to bfloat16/half!
+    # With AMP (automatic mixed precision), model weights stay in FP32 while activations
+    # are computed in the specified dtype (fp16 or bf16). This is crucial for LoRA training
+    # where optimizer states and gradients should remain in FP32.
+    # 
+    # If config["model"]["bfloat16"] is True, we print a deprecation warning.
+    # The correct way to use bf16 is via mixed_precision_training=True and mp_dtype="bf16"
     if config["model"]["bfloat16"]:
-        f = print_size_of_model(whisper_model)
-        whisper_model = whisper_model.bfloat16()
-        q = print_size_of_model(whisper_model)
-        print("Bfloat16 is {0:.2f} times smaller".format(f / q))
-        whisper_model.is_bfloat = True
-    else:
-        whisper_model.is_bfloat = False
+        print("WARNING: config['model']['bfloat16'] is deprecated and will be ignored!")
+        print("For bf16 training, use: training.mixed_precision_training=True and training.mp_dtype='bf16'")
+        print("Model weights are kept in FP32 and autocast handles precision during forward pass.")
+        print("This is REQUIRED for proper LoRA training where optimizer states must be FP32.")
+    
+    whisper_model.is_bfloat = False  # Always False now - AMP handles precision
 
     # If gradient checkpointing is enabled, wrap the model with checkpointing
     # Important: When doing encoder/decoder-only training, stochastic depth should only
@@ -226,7 +242,10 @@ def main(config):
         disable_all_grads(whisper_model.decoder)
 
     # Apply LoRA if enabled
-    if config["model"].get("lora", False):
+    is_lora_run = config["model"].get("lora", False)
+    config["training"]["is_lora_run"] = is_lora_run  # Pass to training loop for debug logging
+    
+    if is_lora_run:
         from whisper_finetune.utils import print_trainable_parameters
         
         print("Applying LoRA adapters...")
@@ -346,7 +365,7 @@ def main(config):
         )
 
     # Load optimizer
-    optimizer = get_optimizer(whisper_model, config["optimizer"])
+    optimizer = get_optimizer(whisper_model, config["optimizer"], is_lora_run=is_lora_run)
 
     # Get Scheduler
     scheduler = get_scheduler(optimizer, config["lr_scheduler"], config["training"]["train_steps"])
