@@ -342,6 +342,105 @@ def collate_fn(data):
     return x, y_in, y_out
 
 
+class WarmupDatasetSampler(torch.utils.data.Sampler):
+    """
+    A sampler that uses only warmup dataset indices during warmup phase,
+    then switches to sampling from all datasets.
+    
+    This is useful for curriculum learning where you want to start training
+    on a specific "easier" or "cleaner" dataset before mixing in other data.
+    
+    Args:
+        warmup_indices: Indices of samples belonging to the warmup dataset
+        all_indices: All valid indices in the dataset
+        warmup_steps: Number of warmup steps (in batches, not samples)
+        batch_size: Batch size for calculating when warmup ends
+        shuffle: Whether to shuffle indices
+    """
+    
+    def __init__(
+        self,
+        warmup_indices: List[int],
+        all_indices: List[int],
+        warmup_steps: int,
+        batch_size: int,
+        shuffle: bool = True,
+    ):
+        self.warmup_indices = list(warmup_indices)
+        self.all_indices = list(all_indices)
+
+        if warmup_steps < 0:
+            raise ValueError(f"warmup_steps must be >= 0, got {warmup_steps}")
+        if batch_size <= 0:
+            raise ValueError(f"batch_size must be > 0, got {batch_size}")
+        if len(self.all_indices) == 0:
+            raise ValueError("all_indices must be non-empty")
+        if len(self.warmup_indices) == 0 and warmup_steps > 0:
+            raise ValueError("warmup_indices must be non-empty when warmup_steps > 0")
+
+        self.warmup_steps = int(warmup_steps)
+        self.batch_size = int(batch_size)
+        self.shuffle = shuffle
+        
+        # How many *samples* to draw before switching from warmup-only sampling.
+        self.warmup_samples = self.warmup_steps * self.batch_size
+        
+        # Current position tracker
+        self._current_sample = 0
+        self._warmup_exhausted = False
+        
+        print(f"WarmupDatasetSampler initialized:")
+        print(f"  - Warmup indices: {len(self.warmup_indices)}")
+        print(f"  - All indices: {len(self.all_indices)}")
+        print(f"  - Warmup steps: {warmup_steps} ({self.warmup_samples} samples)")
+    
+    def __iter__(self):
+        # Reset sample counter at start of each epoch
+        self._current_sample = 0
+        self._warmup_exhausted = False
+        
+        while True:
+            in_warmup = self._current_sample < self.warmup_samples
+            indices = self.warmup_indices if in_warmup else self.all_indices
+
+            indices = indices.copy()
+            if self.shuffle:
+                np.random.shuffle(indices)
+
+            for idx in indices:
+                # Switch exactly after emitting warmup_samples items.
+                if (not self._warmup_exhausted) and self._current_sample >= self.warmup_samples:
+                    print(
+                        f"\n>>> Warmup complete after {self.warmup_samples} samples. Now sampling from all datasets.\n"
+                    )
+                    self._warmup_exhausted = True
+
+                yield idx
+                self._current_sample += 1
+    
+    def __len__(self):
+        # Return total dataset size (for progress bars etc)
+        return len(self.all_indices)
+
+
+def get_dataset_boundary_indices(
+    dataset_sizes: List[int],
+) -> List[Tuple[int, int]]:
+    """
+    Given sizes of concatenated datasets, return (start, end) index tuples for each.
+    
+    Example:
+        dataset_sizes = [1000, 500, 2000]
+        returns: [(0, 1000), (1000, 1500), (1500, 3500)]
+    """
+    boundaries = []
+    start = 0
+    for size in dataset_sizes:
+        boundaries.append((start, start + size))
+        start += size
+    return boundaries
+
+
 def get_dataloader(
     hu_dataset: HU_Dataset,
     tokenizer: Tokenizer,
@@ -387,6 +486,11 @@ def get_dataloader(
         time_stretch_max_rate=time_stretch_max_rate,
         bpe_dropout=bpe_dropout,
     )
+    
+    # PyTorch DataLoader doesn't allow both sampler and shuffle=True
+    if sampler is not None:
+        shuffle = False
+    
     return DataLoader(
         dataset,
         batch_size=batch_size,

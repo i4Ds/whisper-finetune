@@ -12,7 +12,7 @@ from tqdm import tqdm
 from whisper import Whisper as WhisperModel
 from whisper.tokenizer import get_tokenizer
 
-from whisper_finetune.data.data_loader import get_dataloader
+from whisper_finetune.data.data_loader import get_dataloader, WarmupDatasetSampler, get_dataset_boundary_indices
 from whisper_finetune.data.utils import process_dataset
 from whisper_finetune.eval.evaluator import (
     evaluate_multiple_datasets,
@@ -277,12 +277,29 @@ def main(config):
 
     # Get datasets
     ds_config = config["dataset"]
-    train_dataset = process_dataset(
-        ds_config["train_datasets"],
-        ds_config["select_n_per_t_ds"],
-        ds_config["train_split_name"],
-        ds_config["groupby_col"],
-    )
+    
+    # Check if warmup dataset sampling is enabled
+    warmup_dataset_idx = ds_config.get("warmup_dataset_idx", None)  # Index of the warmup dataset in train_datasets
+    
+    # Process datasets - get sizes if we need warmup sampling
+    if warmup_dataset_idx is not None:
+        train_dataset, dataset_sizes = process_dataset(
+            ds_config["train_datasets"],
+            ds_config["select_n_per_t_ds"],
+            ds_config["train_split_name"],
+            ds_config["groupby_col"],
+            return_sizes=True,
+        )
+        print(f"\nDataset sizes: {dataset_sizes}")
+        print(f"Warmup will use dataset index {warmup_dataset_idx}: {ds_config['train_datasets'][warmup_dataset_idx]}")
+    else:
+        train_dataset = process_dataset(
+            ds_config["train_datasets"],
+            ds_config["select_n_per_t_ds"],
+            ds_config["train_split_name"],
+            ds_config["groupby_col"],
+        )
+        dataset_sizes = None
 
     # Process validation datasets - now supports multiple named datasets
     # Ensure val_datasets is always a list (wrap single string in list)
@@ -327,12 +344,37 @@ def main(config):
     # Get tokenizer
     tokenizer = get_tokenizer(multilingual=True, language="de", task="transcribe")
 
+    # Create warmup sampler if configured
+    warmup_sampler = None
+    use_shuffle = True
+    if warmup_dataset_idx is not None and dataset_sizes is not None:
+        # Calculate boundaries for each dataset in the concatenated dataset
+        boundaries = get_dataset_boundary_indices(dataset_sizes)
+        warmup_start, warmup_end = boundaries[warmup_dataset_idx]
+        warmup_indices = list(range(warmup_start, warmup_end))
+        all_indices = list(range(len(train_dataset)))
+        
+        warmup_sampler = WarmupDatasetSampler(
+            warmup_indices=warmup_indices,
+            all_indices=all_indices,
+            warmup_steps=config["lr_scheduler"]["warmup_steps"],
+            batch_size=config["dataset"]["batch_size"],
+            shuffle=True,
+        )
+        use_shuffle = False  # Sampler handles shuffling
+        print(f"\nWarmup sampling enabled:")
+        print(f"  - Dataset: {ds_config['train_datasets'][warmup_dataset_idx]}")
+        print(f"  - Warmup indices: {warmup_start} to {warmup_end} ({warmup_end - warmup_start} samples)")
+        print(f"  - Warmup steps: {config['lr_scheduler']['warmup_steps']}")
+
     # Get dataloaders
     train_loader = get_dataloader(
         hu_dataset=train_dataset,
         tokenizer=tokenizer,
         n_mels=128 if "v3" in config["model"]["init_name"] else 80,
         batch_size=config["dataset"]["batch_size"],
+        sampler=warmup_sampler,
+        shuffle=use_shuffle,
         no_timestamp_training=config["dataset"]["no_timestamp_training"],
         max_prompt_length=config["dataset"]["max_prompt_length"],
         prompt_use_rate=config["dataset"]["prompt_use_rate"],
