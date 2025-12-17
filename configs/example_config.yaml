@@ -10,6 +10,12 @@ dataset:
   # Train datasets: Can be HuggingFace dataset names (e.g., "user/dataset-name") 
   # or local paths (e.g., "path/to/local/dataset")
   train_datasets: [dataset1, dataset2, dataset3]
+
+  # Optional: Warmup sampling from a specific dataset only.
+  # If set to an integer i, then during LR warmup the training sampler yields ONLY samples
+  # from train_datasets[i]. After warmup, sampling switches to ALL datasets (including that one).
+  # Example: warmup_dataset_idx: 0
+  warmup_dataset_idx: null
   
   # How many samples to select from each training dataset (null = use all)
   select_n_per_t_ds: [null, null, 15000]

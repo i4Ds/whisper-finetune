@@ -189,7 +189,7 @@ class ExtremesFrequencyMasking:
         return specs
 
 
-def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, print_examples=False, example_count=5):
+def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, print_examples=False, example_count=5, return_sizes=False):
     """
     Function to process individual datasets with optional groupby sampling,
     filtering out entries with text < 30 chars or audio < 6 seconds, and optionally printing examples.
@@ -201,11 +201,14 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
     - groupby_col (list): Column name to use for groupby sampling.
     - print_examples (bool): If True, print a few filtered examples.
     - example_count (int): Number of examples to print.
+    - return_sizes (bool): If True, also return list of individual dataset sizes.
 
     Returns:
     - concatenated_dataset: A concatenated dataset of all processed datasets.
+    - (optional) dataset_sizes: List of sizes for each dataset (if return_sizes=True)
     """
     processed_datasets = []
+    dataset_sizes = []
 
     # Validate lengths
     if not (len(select_n_per_ds) == len(groupby_col) or len(select_n_per_ds) == len(dataset_names)):
@@ -259,9 +262,13 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
             dataset = dataset
 
         processed_datasets.append(dataset)
+        dataset_sizes.append(len(dataset))
 
     concatenated = concatenate_datasets(processed_datasets)
     print(f"Total rows in concatenated dataset: {len(concatenated)}")
+    
+    if return_sizes:
+        return concatenated, dataset_sizes
     return concatenated
 
 
