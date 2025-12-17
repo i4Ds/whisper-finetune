@@ -26,6 +26,8 @@ def train_step(
     optimizer: torch.optim.Optimizer,
     lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
     t_config: dict,
+    lora_tracker=None,
+    step: int = None,
 ) -> float:
     model.train()
     total_loss = 0.0
@@ -36,14 +38,16 @@ def train_step(
     max_grad_norm = t_config["max_grad_norm"]
     mp_dtype = torch.float16 if t_config["mp_dtype"] == "fp16" else torch.bfloat16
     label_smoothing = t_config.get("label_smoothing", 0.0)  # Label smoothing for cross-entropy
+    is_lora_run = t_config.get("is_lora_run", False)
 
-    # Setup grad scaler, if using fp16
-    # bfloat16 is not supported by torch.cuda.amp.GradScaler: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
-    # Unsure what the solution to this problem ? is
-    if mixed_precision_training:
+    # Setup grad scaler ONLY for fp16 (NOT for bfloat16!)
+    # bfloat16 does NOT need loss scaling - it has sufficient dynamic range
+    # GradScaler with bf16 causes: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
+    use_fp16 = mixed_precision_training and t_config["mp_dtype"] == "fp16"
+    if use_fp16:
         scaler = torch.cuda.amp.GradScaler()
     else:
-        scaler = None
+        scaler = None  # No scaler for bf16 or fp32
 
     max_retries = 3  # Set the maximum number of retries for a training step
 
@@ -79,12 +83,30 @@ def train_step(
         # Unscales the gradients of optimizer's assigned params in-place
         scaler.unscale_(optimizer)
 
+    # Log LoRA debug info AFTER backward() but BEFORE optimizer.step()
+    # This captures gradient information before gradients are zeroed
+    # Only log at eval steps (when step is provided and is an eval step)
+    val_steps = t_config.get("val_steps", None)
+    train_steps = t_config.get("train_steps", None)
+    should_log_lora = (
+        is_lora_run and 
+        step is not None and 
+        val_steps is not None and 
+        ((step % val_steps == 0) or step == train_steps)
+    )
+    if should_log_lora:
+        from whisper_finetune.model.lora import log_lora_debug_info
+        log_lora_debug_info(model, step=step, tracker=lora_tracker, log_to_wandb=True)
+
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+
+    # Take snapshot of LoRA params BEFORE optimizer.step() to track updates
+    if is_lora_run and lora_tracker is not None:
+        lora_tracker.snapshot()
 
     if scaler:
         # https://discuss.pytorch.org/t/optimizer-step-before-lr-scheduler-step-error-using-gradscaler/92930/8
         scale_before = scaler.get_scale()
-        wandb.log({"scale": scale_before})
         scaler.step(optimizer)
         if (
             scale_before <= scaler.get_scale()

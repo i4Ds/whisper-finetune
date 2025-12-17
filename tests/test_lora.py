@@ -705,3 +705,145 @@ class TestLoRAIntegration:
         # Should contain info about trainable params
         assert "trainable" in output.lower() or "LoRA" in output
         assert "%" in output  # Should show percentage
+
+
+class TestLoRADebugFunctions:
+    """Test LoRA debug functions for parameter and gradient tracking."""
+
+    def test_is_lora_enabled(self):
+        """Test that is_lora_enabled correctly detects LoRA parameters."""
+        from whisper_finetune.model.lora import is_lora_enabled
+        from minlora import add_lora, LoRAParametrization
+        
+        model = torch.nn.Sequential(
+            torch.nn.Linear(64, 32),
+            torch.nn.Linear(32, 16),
+        )
+        
+        # Before adding LoRA
+        assert not is_lora_enabled(model), "Should return False before LoRA is added"
+        
+        # Add LoRA
+        lora_config = {
+            torch.nn.Linear: {
+                "weight": partial(LoRAParametrization.from_linear, rank=4),
+            },
+        }
+        add_lora(model, lora_config=lora_config)
+        
+        # After adding LoRA
+        assert is_lora_enabled(model), "Should return True after LoRA is added"
+
+    def test_get_lora_debug_stats(self):
+        """Test that get_lora_debug_stats returns correct statistics."""
+        from whisper_finetune.model.lora import get_lora_debug_stats, disable_all_but_parametrized_grads
+        from minlora import add_lora, LoRAParametrization
+        
+        model = torch.nn.Sequential(
+            torch.nn.Linear(64, 32),
+            torch.nn.Linear(32, 16),
+        )
+        
+        lora_config = {
+            torch.nn.Linear: {
+                "weight": partial(LoRAParametrization.from_linear, rank=4),
+            },
+        }
+        add_lora(model, lora_config=lora_config)
+        disable_all_but_parametrized_grads(model)
+        
+        # Get stats before backward (no gradients yet)
+        stats = get_lora_debug_stats(model, representative_module_pattern="")
+        
+        # Should have parameter norms
+        assert stats["lora_A_norm"] is not None, "Should have lora_A_norm"
+        assert stats["lora_B_norm"] is not None, "Should have lora_B_norm"
+        assert stats["lora_A_norm"] > 0, "lora_A_norm should be positive (initialized with kaiming)"
+        # lora_B starts at 0, so norm should be 0
+        assert stats["lora_B_norm"] == 0.0, "lora_B_norm should be 0 (initialized to zero)"
+        
+        # No gradients yet
+        assert stats["lora_A_grad_norm"] is None, "Should have no gradient before backward"
+        assert stats["lora_B_grad_norm"] is None, "Should have no gradient before backward"
+
+    def test_get_lora_debug_stats_with_gradients(self):
+        """Test that get_lora_debug_stats captures gradients after backward."""
+        from whisper_finetune.model.lora import get_lora_debug_stats, disable_all_but_parametrized_grads
+        from minlora import add_lora, LoRAParametrization
+        
+        model = torch.nn.Sequential(
+            torch.nn.Linear(64, 32),
+            torch.nn.Linear(32, 16),
+        )
+        
+        lora_config = {
+            torch.nn.Linear: {
+                "weight": partial(LoRAParametrization.from_linear, rank=4),
+            },
+        }
+        add_lora(model, lora_config=lora_config)
+        disable_all_but_parametrized_grads(model)
+        
+        # Set lora_B to non-zero so gradients flow
+        for name, param in model.named_parameters():
+            if 'lora_B' in name:
+                param.data = torch.randn_like(param) * 0.1
+        
+        # Forward and backward
+        x = torch.randn(1, 64)
+        output = model(x)
+        loss = output.sum()
+        loss.backward()
+        
+        # Get stats after backward
+        stats = get_lora_debug_stats(model, representative_module_pattern="")
+        
+        # Should now have gradient info
+        assert stats["lora_A_grad_norm"] is not None, "Should have lora_A gradient after backward"
+        assert stats["lora_A_grad_abs_max"] is not None, "Should have lora_A_grad_abs_max"
+
+    def test_lora_update_tracker(self):
+        """Test that LoRAUpdateTracker correctly tracks parameter updates."""
+        from whisper_finetune.model.lora import LoRAUpdateTracker, disable_all_but_parametrized_grads
+        from minlora import add_lora, LoRAParametrization
+        
+        model = torch.nn.Sequential(
+            torch.nn.Linear(64, 32),
+            torch.nn.Linear(32, 16),
+        )
+        
+        lora_config = {
+            torch.nn.Linear: {
+                "weight": partial(LoRAParametrization.from_linear, rank=4),
+            },
+        }
+        add_lora(model, lora_config=lora_config)
+        disable_all_but_parametrized_grads(model)
+        
+        # Set lora_B to non-zero
+        for name, param in model.named_parameters():
+            if 'lora_B' in name:
+                param.data = torch.randn_like(param) * 0.1
+        
+        tracker = LoRAUpdateTracker(model, representative_module_pattern="")
+        
+        # Take initial snapshot
+        tracker.snapshot()
+        
+        # Simulate training step
+        x = torch.randn(1, 64)
+        output = model(x)
+        loss = output.sum()
+        loss.backward()
+        
+        optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=0.1)
+        optimizer.step()
+        
+        # Get update norms
+        update_norms = tracker.get_update_norms()
+        
+        # Should have update info
+        assert update_norms["delta_A_norm"] is not None, "Should track delta_A_norm"
+        assert update_norms["delta_B_norm"] is not None, "Should track delta_B_norm"
+        assert update_norms["delta_A_norm"] > 0, "Parameters should have changed"
+        assert update_norms["delta_B_norm"] > 0, "Parameters should have changed"
