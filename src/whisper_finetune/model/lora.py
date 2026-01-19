@@ -9,7 +9,7 @@ from functools import partial
 
 import torch
 from torch.nn.utils.parametrize import is_parametrized
-
+import torch.nn.utils.parametrize as parametrize
 
 def disable_all_but_parametrized_grads(model: torch.nn.Module) -> None:
     """
@@ -70,6 +70,14 @@ def apply_lora(
     # Disable gradients for non-LoRA parameters
     disable_all_but_parametrized_grads(model)
 
+
+def merge_lora(model: torch.nn.Module) -> None:  
+    """Merge LoRA adapters into the base model weights."""
+    def _merge_layer(layer):
+        if is_parametrized(layer, "weight"):
+            for attr_name in list(layer.parametrizations.keys()):
+                parametrize.remove_parametrizations(layer, attr_name, leave_parametrized=False)
+    model.apply(_merge_layer)
 
 def print_lora_info(model: torch.nn.Module) -> None:
     """
