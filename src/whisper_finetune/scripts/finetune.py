@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -162,6 +163,12 @@ def main(config):
 
     # Create save directory
     Path(config["save_dir"]).mkdir(parents=True, exist_ok=True)
+
+    if config["model"].get("lora", False):
+        lora_config = config["model"].get("lora_config", {})
+        lora_config_path = os.path.join(config["save_dir"], "lora_config.json")
+        with open(lora_config_path, "w", encoding="utf-8") as handle:
+            json.dump(lora_config, handle, indent=2, sort_keys=True)
 
     # Print SLURM stuff
     # Check if the script is running on a Slurm cluster

@@ -57,6 +57,14 @@ Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed a
    python src/whisper_finetune/scripts/finetune.py --config configs/example_config.yaml
    ```
 
+3. (Optional) Merge LoRA weights into a standard Whisper checkpoint (saved via `save_model`):
+   ```bash
+   python src/whisper_finetune/scripts/merge_lora_weights.py \
+       --input /path/to/best_model.pt \
+       --config configs/config_lora_only.yaml \
+     --output /path/to/last_model_merged.pt
+   ```
+
 ## Testing
 
 Run the test suite to ensure everything is working:
