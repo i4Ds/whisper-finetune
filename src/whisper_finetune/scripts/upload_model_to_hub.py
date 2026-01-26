@@ -129,6 +129,7 @@ def convert_to_ct2(
     # Copy tokenizer/config from provided source directory
     tok_json = tokenizer_source_dir / "tokenizer.json"
     cfg_json = tokenizer_source_dir / "config.json"
+    prepro_json = tokenizer_source_dir / "preprocessor_config.json"
     
     if tok_json.exists():
         shutil.copyfile(tok_json, hf_model_folder / "tokenizer.json")
@@ -139,6 +140,11 @@ def convert_to_ct2(
         shutil.copyfile(cfg_json, hf_model_folder / "config.json")
     else:
         raise FileNotFoundError(f"Missing config.json in {tokenizer_source_dir}")
+
+    if prepro_json.exists():
+        shutil.copyfile(prepro_json, hf_model_folder / "preprocessor_config.json")
+    else:
+        raise FileNotFoundError(f"Missing preprocessor_config.json in {tokenizer_source_dir}")
 
     # Convert to CTranslate2
     # Only copy README if it exists
@@ -172,7 +178,7 @@ def upload_to_hub(
         private: Whether to make the repo private
         readme_text: Optional README content for the repo
     """
-    api = HfApi(token='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')
+    api = HfApi() # Replace with your HF token or use env variable
     
     # Create repo
     api.create_repo(repo_id=repo_id, private=private, exist_ok=True)

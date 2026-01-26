@@ -69,6 +69,36 @@ def download_model_from_wandb(
         return save_dir / candidate.name
 
 
+def resolve_checkpoint_path(
+    *,
+    run_path: Optional[str],
+    local_path: Optional[str],
+    save_dir: Path,
+    file_basename: str = "last_model.pt",
+) -> Path:
+    """Resolve a checkpoint path from a local file or W&B run.
+
+    If local_path is provided, it must point to an existing .pt file.
+    Otherwise, run_path is used to download from W&B.
+    """
+    if local_path:
+        ckpt = Path(local_path)
+        if not ckpt.exists():
+            raise FileNotFoundError(f"Local checkpoint not found: {ckpt}")
+        if ckpt.suffix != ".pt":
+            raise ValueError(f"Local checkpoint must be a .pt file: {ckpt}")
+        return ckpt
+
+    if not run_path:
+        raise ValueError("Either local_path or run_path must be provided")
+
+    return download_model_from_wandb(
+        run_path=run_path,
+        save_dir=save_dir,
+        file_basename=file_basename,
+    )
+
+
 def convert_to_hf_and_ct2(
     *,
     checkpoint_path: Path,
@@ -134,23 +164,23 @@ if __name__ == "__main__":
     os.environ.setdefault("HF_HOME", "./cache/huggingface")
     os.environ.setdefault("TRANSFORMERS_CACHE", "./cache/huggingface/t_cache")
 
-    wandb_runs: Sequence[str] = [
-        # Example: "i4ds/whisper4sg/runs/w2u8dihi"
-        "i4ds/whisper4sg/runs/y109yl61",
-        "i4ds/whisper4sg/runs/3g251dpa",
-        "i4ds/whisper4sg/runs/4wwugkss",
-        "i4ds/whisper4sg/runs/x9aebznp",
+    wandb_runs: Sequence[Optional[str]] = [
+        # Example: "i4ds/whisper4playnvoice/runs/d1zz4yum"
+        "i4ds/whisper4playnvoice/runs/d1zz4yum",  # Use local checkpoint instead
+    ]
+    # Optional local checkpoints (use None to fall back to W&B per entry)
+    local_checkpoints: Sequence[Optional[str]] = [
+        "/scicore/home/graber0001/GROUP/stt/data_nobackup/whisper/training_outputs_lora/2388310/last_model_merged.pt",
+        # Example local file:
+        # "/path/to/last_model.pt",
     ]
     hf_repo_ids: Sequence[str] = [
         # Example: "swissnlp/daily-brook-134"  # aka HU model path
-        "i4ds/smart-galaxy-136",
-        "i4ds/colorful-darkness-137",
-        "i4ds/astral-star-138",
-        "i4ds/clear-armadillo-139",
+        "i4ds/ruby-donkey-35",
     ]
 
     # Optional: if your last checkpoint file in W&B has a different basename
-    file_basename = "last_model.pt"
+    file_basename = "last_model_merged.pt"
 
     # IO locations
     download_dir = Path("./downloaded_models")
@@ -159,7 +189,7 @@ if __name__ == "__main__":
 
     # Tokenizer/config source directory (choose one that matches your model)
     # Options present in this repo include: "whisper_v3_turbo_utils" or "whisper_v3_utils"
-    tokenizer_source_dir = Path("whisper_v3_turbo_utils")
+    tokenizer_source_dir = Path("whisper_v3_utils")
 
     # Conversion options
     ct2_quantization = "float16"
@@ -174,23 +204,28 @@ if __name__ == "__main__":
         "This folder contains a converted model using CTranslate2.\n\n"
         "## Conversion Details\n"
         "The model (large-v3) was converted to CTranslate2 format with float16 quantization.\n\n"
-        "## Data\n"
-        "Model was trained on stt4sg, SRG v3 PL, SRV v3 Real, SPC_R and SDS-200 data.\n"
     )
 
-    if not (len(wandb_runs) == len(hf_repo_ids)):
-        raise ValueError(f"List lengths must match: wandb_runs={len(wandb_runs)}, hf_repo_ids={len(hf_repo_ids)}")
+    if not (len(wandb_runs) == len(hf_repo_ids) == len(local_checkpoints)):
+        raise ValueError(
+            "List lengths must match: "
+            f"wandb_runs={len(wandb_runs)}, "
+            f"hf_repo_ids={len(hf_repo_ids)}, "
+            f"local_checkpoints={len(local_checkpoints)}"
+        )
 
-    for run_path, repo in zip(wandb_runs, hf_repo_ids):
-        print(f"Processing:  run={run_path}, repo={repo}")
+    for run_path, repo, local_path in zip(wandb_runs, hf_repo_ids, local_checkpoints):
+        source_desc = f"local={local_path}" if local_path else f"run={run_path}"
+        print(f"Processing:  {source_desc}, repo={repo}")
 
-        # 1) Download from W&B
-        local_ckpt = download_model_from_wandb(
+        # 1) Resolve checkpoint (local or W&B)
+        local_ckpt = resolve_checkpoint_path(
             run_path=run_path,
+            local_path=local_path,
             save_dir=download_dir,
             file_basename=file_basename,
         )
-        print(f"Downloaded checkpoint: {local_ckpt}")
+        print(f"Checkpoint: {local_ckpt}")
 
         # 2) Convert to HF + CT2
         name = repo.split("/")[-1]
@@ -198,7 +233,10 @@ if __name__ == "__main__":
         ct2_output_dir = ct2_root / name
 
         # Add run link into README
-        readme_text = base_readme + "\n## Weights & Biases Run\n" + f"https://wandb.ai/{run_path}\n"
+        if run_path:
+            readme_text = base_readme + "\n## Weights & Biases Run\n" + f"https://wandb.ai/{run_path}\n"
+        else:
+            readme_text = base_readme + "\n## Checkpoint Source\n" + f"{local_ckpt}\n"
 
         ct2_folder = convert_to_hf_and_ct2(
             checkpoint_path=local_ckpt,
