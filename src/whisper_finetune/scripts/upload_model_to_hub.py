@@ -1,6 +1,16 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# dependencies = [
+#   "ctranslate2",
+#   "huggingface_hub",
+#   "torch",
+#   "transformers",
+#   "tqdm",
+#   "wandb",
+# ]
+# ///
 """
-Unified script to upload Whisper models to Hugging Face Hub.
+Unified script to upload Whisper models to Hugging Face Hub or write a local repo.
 
 This script can:
 1. Upload original .pt checkpoint files directly to HF
@@ -23,10 +33,14 @@ Usage examples:
     
     # Upload only faster-whisper format
     python upload_model_to_hub.py --local-path ./model.pt --repo i4ds/my-model --ct2-only
+
+    # Write a local repo in HF cache (no upload)
+    python upload_model_to_hub.py --local-path ./model.pt --repo i4ds/my-model --ct2-only --local-only
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shutil
 from pathlib import Path
@@ -34,11 +48,30 @@ from typing import Optional
 
 import wandb
 from ctranslate2.converters import TransformersConverter
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, constants as hf_constants
 
-from whisper_finetune.scripts.convert_openai_to_hf import (
-    convert_openai_whisper_to_tfms,
-)
+try:
+    from whisper_finetune.scripts.convert_openai_to_hf import (
+        convert_openai_whisper_to_tfms,
+    )
+except ModuleNotFoundError:
+    import importlib.util
+    import sys
+
+    local_src = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(local_src))
+    try:
+        from whisper_finetune.scripts.convert_openai_to_hf import (
+            convert_openai_whisper_to_tfms,
+        )
+    except ModuleNotFoundError:
+        module_path = local_src / "whisper_finetune" / "scripts" / "convert_openai_to_hf.py"
+        spec = importlib.util.spec_from_file_location("convert_openai_to_hf", module_path)
+        if spec is None or spec.loader is None:
+            raise
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        convert_openai_whisper_to_tfms = module.convert_openai_whisper_to_tfms
 
 
 def ensure_dir(path: Path) -> None:
@@ -147,10 +180,12 @@ def convert_to_ct2(
         raise FileNotFoundError(f"Missing preprocessor_config.json in {tokenizer_source_dir}")
 
     # Convert to CTranslate2
-    # Only copy README if it exists
+    # Copy tokenizer.json and if they exist: README.md and preprocessor_config.json
     copy_files = ["tokenizer.json"]
     if (hf_model_folder / "README.md").exists():
         copy_files.append("README.md")
+    if (hf_model_folder / "preprocessor_config.json").exists():
+        copy_files.append("preprocessor_config.json")
     
     converter = TransformersConverter(
         str(hf_model_folder),
@@ -219,9 +254,92 @@ def upload_to_hub(
         print(f"  ✓ Updated README.md")
 
 
+def _copy_folder_contents(src_dir: Path, dst_dir: Path) -> None:
+    for item in src_dir.iterdir():
+        target = dst_dir / item.name
+        if item.is_dir():
+            shutil.copytree(item, target, dirs_exist_ok=True)
+        else:
+            shutil.copy2(item, target)
+
+
+def _get_hf_cache_dir() -> Path:
+    """Get the HuggingFace Hub cache directory."""
+    return Path(hf_constants.HF_HUB_CACHE)
+
+
+def _repo_folder_name(repo_id: str, repo_type: str = "model") -> str:
+    """Convert repo_id to cache folder name (e.g., 'org/repo' -> 'models--org--repo')."""
+    repo_type_prefix = f"{repo_type}s"
+    return f"{repo_type_prefix}--" + "--".join(repo_id.split("/"))
+
+
+def write_to_hf_cache(
+    repo_id: str,
+    pt_path: Optional[Path] = None,
+    ct2_folder: Optional[Path] = None,
+    readme_text: Optional[str] = None,
+    revision: str = "main",
+    cache_dir: Optional[Path] = None,
+) -> Path:
+    """Write model files to local HuggingFace cache following HF conventions.
+    
+    Creates the proper cache structure:
+        {HF_HUB_CACHE}/models--{org}--{repo}/
+            refs/main              # contains the commit hash
+            snapshots/{hash}/      # actual model files
+    
+    Args:
+        repo_id: HF repository ID (e.g., "i4ds/my-model")
+        pt_path: Path to the .pt checkpoint (optional)
+        ct2_folder: Path to CTranslate2 folder (optional)
+        readme_text: Optional README content
+        revision: Branch name (default: "main")
+        cache_dir: Override HF cache directory (default: HF_HUB_CACHE)
+    
+    Returns:
+        Path to the snapshot directory containing the model files
+    """
+    if cache_dir is None:
+        cache_dir = _get_hf_cache_dir()
+    repo_folder = cache_dir / _repo_folder_name(repo_id)
+    
+    # Create a deterministic but unique revision hash based on repo_id and content
+    hash_input = repo_id
+    if pt_path:
+        hash_input += str(pt_path.stat().st_mtime if pt_path.exists() else "")
+    commit_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:40]
+    
+    # Create directory structure
+    refs_dir = repo_folder / "refs"
+    snapshots_dir = repo_folder / "snapshots"
+    snapshot_dir = snapshots_dir / commit_hash
+    
+    ensure_dir(refs_dir)
+    ensure_dir(snapshot_dir)
+    
+    # Write the ref file pointing to this commit
+    (refs_dir / revision).write_text(commit_hash)
+    
+    # Copy model files to snapshot directory
+    if ct2_folder is not None and ct2_folder.exists():
+        _copy_folder_contents(ct2_folder, snapshot_dir)
+    
+    if pt_path is not None and pt_path.exists():
+        shutil.copy2(pt_path, snapshot_dir / pt_path.name)
+    
+    if readme_text is not None:
+        (snapshot_dir / "README.md").write_text(readme_text)
+    
+    print(f"  Cache location: {repo_folder}")
+    print(f"  Snapshot: {commit_hash[:8]}...")
+    
+    return snapshot_dir
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Upload Whisper models to Hugging Face Hub",
+        description="Upload Whisper models to Hugging Face Hub or write a local repo",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -236,6 +354,9 @@ Examples:
     
     # Upload only faster-whisper format
     python upload_model_to_hub.py --local-path ./model.pt --repo i4ds/my-model --ct2-only
+
+    # Write a local repo in HF cache (no upload)
+    python upload_model_to_hub.py --local-path ./model.pt --repo i4ds/my-model --ct2-only --local-only
         """
     )
     
@@ -299,6 +420,11 @@ Examples:
         help="Basename of the model file in W&B (default: last_model.pt)"
     )
     parser.add_argument(
+        "--local-only",
+        action="store_true",
+        help="Write to local HF cache instead of uploading (model loadable via repo_id)"
+    )
+    parser.add_argument(
         "--public",
         action="store_true",
         help="Make the repo public (default: private)"
@@ -322,7 +448,10 @@ Examples:
     
     args = parser.parse_args()
     
-    # Setup environment
+    # Capture the real HF cache directory BEFORE any env modifications
+    original_hf_cache = _get_hf_cache_dir()
+    
+    # Setup environment for temporary files during conversion
     os.environ.setdefault("HF_HOME", str(args.work_dir / "cache" / "huggingface"))
     os.environ.setdefault("TRANSFORMERS_CACHE", str(args.work_dir / "cache" / "transformers"))
     
@@ -407,17 +536,26 @@ for segment in segments:
         )
         print(f"CTranslate2 conversion complete: {ct2_folder}")
     
-    # Upload to Hub
-    print(f"\nUploading to {args.repo}...")
-    upload_to_hub(
-        repo_id=args.repo,
-        pt_path=pt_to_upload,
-        ct2_folder=ct2_folder,
-        private=not args.public,
-        readme_text=readme_text,
-    )
-    
-    print(f"\n✓ Done! Model available at: https://huggingface.co/{args.repo}")
+    if args.local_only:
+        print(f"\nWriting to local HF cache for {args.repo}...")
+        write_to_hf_cache(
+            repo_id=args.repo,
+            pt_path=pt_to_upload,
+            ct2_folder=ct2_folder,
+            readme_text=readme_text,
+            cache_dir=original_hf_cache,
+        )
+        print(f"\n✓ Done! Model can be loaded with: WhisperModel(\"{args.repo}\")")
+    else:
+        print(f"\nUploading to {args.repo}...")
+        upload_to_hub(
+            repo_id=args.repo,
+            pt_path=pt_to_upload,
+            ct2_folder=ct2_folder,
+            private=not args.public,
+            readme_text=readme_text,
+        )
+        print(f"\n✓ Done! Model available at: https://huggingface.co/{args.repo}")
 
 
 if __name__ == "__main__":
