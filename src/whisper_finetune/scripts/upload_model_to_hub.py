@@ -203,6 +203,7 @@ def upload_to_hub(
     ct2_folder: Optional[Path] = None,
     private: bool = True,
     readme_text: Optional[str] = None,
+    hf_token: Optional[str] = None,
 ) -> None:
     """Upload model files to Hugging Face Hub.
 
@@ -212,11 +213,12 @@ def upload_to_hub(
         ct2_folder: Path to CTranslate2 folder (optional)
         private: Whether to make the repo private
         readme_text: Optional README content for the repo
+        hf_token: Optional Hugging Face token (overrides env-based auth)
     """
-    api = HfApi() # Replace with your HF token or use env variable
+    api = HfApi(token=hf_token) if hf_token else HfApi()
     
     # Create repo
-    api.create_repo(repo_id=repo_id, private=private, exist_ok=True)
+    api.create_repo(repo_id=repo_id, private=private, exist_ok=True, token=hf_token)
     
     # Upload .pt file if provided
     if pt_path is not None and pt_path.exists():
@@ -226,6 +228,7 @@ def upload_to_hub(
             path_in_repo=pt_path.name,
             repo_id=repo_id,
             repo_type="model",
+            token=hf_token,
         )
         print(f"  ✓ Uploaded {pt_path.name}")
     
@@ -238,6 +241,7 @@ def upload_to_hub(
             path_in_repo=".",  # Upload to root, not a subfolder
             repo_id=repo_id,
             repo_type="model",
+            token=hf_token,
         )
         print(f"  ✓ Uploaded faster-whisper files to repo root")
     
@@ -250,6 +254,7 @@ def upload_to_hub(
             path_in_repo="README.md",
             repo_id=repo_id,
             repo_type="model",
+            token=hf_token,
         )
         print(f"  ✓ Updated README.md")
 
@@ -445,6 +450,11 @@ Examples:
         type=str,
         help="W&B run URL for README (use with --local-path when you have a local file but want to link to W&B)"
     )
+    parser.add_argument(
+        "--hf-token",
+        type=str,
+        help="Hugging Face token for upload/auth (optional; otherwise use env/token cache)"
+    )
     
     args = parser.parse_args()
     
@@ -554,6 +564,7 @@ for segment in segments:
             ct2_folder=ct2_folder,
             private=not args.public,
             readme_text=readme_text,
+            hf_token=args.hf_token,
         )
         print(f"\n✓ Done! Model available at: https://huggingface.co/{args.repo}")
 
