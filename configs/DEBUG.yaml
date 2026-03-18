@@ -2,7 +2,7 @@ model:
   init_name: small
   bfloat16: False # If this is set, mixed_precision_training will use bfloat16
 dataset:
-  train_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/srg-full-train-val-v2, i4ds/mozilla-cv-13-long-text-de]
+  train_datasets: [i4ds/sg_corp_train_no_overlap_speaker_ret, i4ds/Youtube_Podcast_prepared_whisper, i4ds/mozilla-cv-13-long-text-de]
   select_n_per_t_ds: [1000, 1000, 1000] # How many rows to sample from the respective dataset per training run.
   groupby_col: [null, null, null] # If set, it will preform a groupby sample per column in the respective train dataset, similar to pandas groupby.sample but with training data. Total number of samples is select_n_per_t_ds * n_groups.
   val_datasets: [kenfus/67124e07520c24211abed261-raffaela.witting-claudia_28sec, kenfus/671f45f0520c24211abedbfa-n.ferrari-10min_28sec, i4ds/mozilla-cv-13-long-text-de]
