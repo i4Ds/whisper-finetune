@@ -130,6 +130,77 @@ def save_model(model: Whisper, save_path: str) -> None:
     torch.save({"model_state_dict": model.state_dict(), "dims": asdict(model.dims)}, save_path)
 
 
+def _resample_block_list(blocks: torch.nn.ModuleList, target_layers: int) -> torch.nn.ModuleList:
+    """Resize a block list by deterministic proportional keep/duplicate."""
+    if target_layers < 1:
+        raise ValueError(f"target_layers must be >= 1, got {target_layers}")
+
+    current_layers = len(blocks)
+    if current_layers < 1:
+        raise ValueError("Cannot resize an empty block list")
+
+    if target_layers == current_layers:
+        return blocks
+
+    resized_blocks = []
+    for i, block in enumerate(blocks):
+        # Proportional resampling:
+        # - repeat=0: drop block
+        # - repeat=1: keep block
+        # - repeat>1: keep + deep-copied duplicates
+        repeat = ((i + 1) * target_layers) // current_layers - (i * target_layers) // current_layers
+        if repeat <= 0:
+            continue
+        resized_blocks.append(block)
+        for _ in range(repeat - 1):
+            resized_blocks.append(copy.deepcopy(block))
+
+    if len(resized_blocks) != target_layers:
+        raise RuntimeError(
+            f"Layer resizing produced {len(resized_blocks)} blocks, expected {target_layers}."
+        )
+
+    return torch.nn.ModuleList(resized_blocks)
+
+
+def _reset_default_alignment_heads(model: Whisper) -> None:
+    all_heads = torch.zeros(model.dims.n_text_layer, model.dims.n_text_head, dtype=torch.bool)
+    all_heads[model.dims.n_text_layer // 2 :] = True
+    model.register_buffer("alignment_heads", all_heads.to_sparse(), persistent=False)
+
+
+def resize_whisper_layers(
+    model: Whisper,
+    target_encoder_layers: Optional[int] = None,
+    target_decoder_layers: Optional[int] = None,
+) -> bool:
+    """Resize Whisper encoder/decoder depth before training.
+
+    Returns:
+        bool: True if architecture changed, otherwise False.
+    """
+    architecture_changed = False
+
+    if target_encoder_layers is not None:
+        current_encoder_layers = len(model.encoder.blocks)
+        if target_encoder_layers != current_encoder_layers:
+            model.encoder.blocks = _resample_block_list(model.encoder.blocks, target_encoder_layers)
+            model.dims.n_audio_layer = target_encoder_layers
+            architecture_changed = True
+            print(f"Resized encoder layers: {current_encoder_layers} -> {target_encoder_layers}")
+
+    if target_decoder_layers is not None:
+        current_decoder_layers = len(model.decoder.blocks)
+        if target_decoder_layers != current_decoder_layers:
+            model.decoder.blocks = _resample_block_list(model.decoder.blocks, target_decoder_layers)
+            model.dims.n_text_layer = target_decoder_layers
+            _reset_default_alignment_heads(model)
+            architecture_changed = True
+            print(f"Resized decoder layers: {current_decoder_layers} -> {target_decoder_layers}")
+
+    return architecture_changed
+
+
 def infinite_iter(data_loader: DataLoader) -> Iterator:
     while True:
         for batch in data_loader:
