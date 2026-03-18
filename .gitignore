@@ -181,3 +181,4 @@ hf_models/*
 configs/*.yaml
 *.mp3
 .vscode/*
+whisper_*_utils/*
