@@ -45,7 +45,7 @@ def train_step(
     # GradScaler with bf16 causes: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
     use_fp16 = mixed_precision_training and t_config["mp_dtype"] == "fp16"
     if use_fp16:
-        scaler = torch.cuda.amp.GradScaler()
+        scaler = torch.amp.GradScaler("cuda")
     else:
         scaler = None  # No scaler for bf16 or fp32
 
@@ -105,15 +105,13 @@ def train_step(
         lora_tracker.snapshot()
 
     if scaler:
-        # https://discuss.pytorch.org/t/optimizer-step-before-lr-scheduler-step-error-using-gradscaler/92930/8
+        # Step scheduler only if optimizer.step actually happened (i.e., no overflow skip).
         scale_before = scaler.get_scale()
         scaler.step(optimizer)
-        if (
-            scale_before <= scaler.get_scale()
-        ):  # If the scale has stayed the same or increased (which is good, means it's stable), then step the scheduler.
-            # If this is not the case, scaler.step(optimizer) also didn't happen.
-            lr_scheduler.step()
         scaler.update()
+        scale_after = scaler.get_scale()
+        if scale_after >= scale_before:
+            lr_scheduler.step()
     else:
         optimizer.step()
         lr_scheduler.step()
