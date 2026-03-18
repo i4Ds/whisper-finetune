@@ -23,7 +23,7 @@ from whisper_finetune.model.model_utils import (
     CheckpointedStochasticAudioEncoder,
     CheckpointedStochasticTextDecoder,
     infinite_iter,
-    load_model_and_set_heads,
+    resize_whisper_layers,
     register_deep_spec_augment_hooks,
     save_model,
     train_step,
@@ -43,6 +43,39 @@ from whisper_finetune.utils import (
 )
 
 ENABLE_MEMORY_PROFILING = False
+
+MODEL_LAYER_PRESETS = {
+    "whisper-4832": {"base_init_name": "large-v3", "encoder_layers": 48, "decoder_layers": 32},
+    "whisper-3248": {"base_init_name": "large-v3", "encoder_layers": 32, "decoder_layers": 48},
+}
+
+
+def _first_defined(config: dict, *keys: str):
+    for key in keys:
+        if key in config and config[key] is not None:
+            return config[key]
+    return None
+
+
+def _resolve_model_architecture(model_config: dict) -> tuple[str, int | None, int | None]:
+    init_name = model_config["init_name"]
+    preset = MODEL_LAYER_PRESETS.get(init_name, {})
+
+    base_init_name = model_config.get("base_init_name", preset.get("base_init_name", init_name))
+    encoder_layers = _first_defined(model_config, "encoder_layers", "encoder_layer")
+    decoder_layers = _first_defined(model_config, "decoder_layers", "decoder_layer", "deocer_layer")
+
+    if encoder_layers is None:
+        encoder_layers = preset.get("encoder_layers")
+    if decoder_layers is None:
+        decoder_layers = preset.get("decoder_layers")
+
+    if encoder_layers is not None:
+        encoder_layers = int(encoder_layers)
+    if decoder_layers is not None:
+        decoder_layers = int(decoder_layers)
+
+    return base_init_name, encoder_layers, decoder_layers
 
 
 def main_loop(
@@ -188,8 +221,22 @@ def main(config):
     print("GPU Name:", torch.cuda.get_device_name(0))
     print("GPU memory:", torch.cuda.get_device_properties(0).total_memory / 1024**3, "GB")
 
+    base_init_name, target_encoder_layers, target_decoder_layers = _resolve_model_architecture(config["model"])
+    if base_init_name != config["model"]["init_name"]:
+        print(f"Model alias '{config['model']['init_name']}' resolved to base model '{base_init_name}'.")
+
     ## Get model
-    whisper_model = whisper.load_model(config["model"]["init_name"], device="cpu")
+    whisper_model = whisper.load_model(base_init_name, device="cpu")
+    architecture_changed = resize_whisper_layers(
+        whisper_model,
+        target_encoder_layers=target_encoder_layers,
+        target_decoder_layers=target_decoder_layers,
+    )
+    if architecture_changed:
+        print(
+            "Whisper architecture override active: "
+            f"encoder={whisper_model.dims.n_audio_layer}, decoder={whisper_model.dims.n_text_layer}"
+        )
 
     # NOTE ON PRECISION:
     # DO NOT manually cast the model to bfloat16/half!
@@ -212,8 +259,15 @@ def main(config):
     # be applied to the part being trained. Set stochastic_depth=0.0 for frozen components.
     encoder_stochastic_depth = 0.0 if config["training"]["train_only_decoder"] else config["training"]["stochastic_depth"]
     decoder_stochastic_depth = 0.0 if config["training"]["train_only_encoder"] else config["training"]["stochastic_depth"]
-    
-    if config["training"]["gradient_checkpointing_encoder"]:
+    use_gradient_checkpointing_encoder = config["training"]["gradient_checkpointing_encoder"]
+    use_gradient_checkpointing_decoder = config["training"]["gradient_checkpointing_decoder"]
+    checkpoint_reload_state = (
+        whisper_model.state_dict()
+        if (use_gradient_checkpointing_encoder or use_gradient_checkpointing_decoder)
+        else None
+    )
+
+    if use_gradient_checkpointing_encoder:
         del whisper_model.encoder
         if config["training"]["gradient_checkpointing_encoder_last_only"]:
             raise ValueError(
@@ -228,7 +282,7 @@ def main(config):
                 whisper_model.dims.n_audio_layer,
                 encoder_stochastic_depth,
             )
-    if config["training"]["gradient_checkpointing_decoder"]:
+    if use_gradient_checkpointing_decoder:
         del whisper_model.decoder
         whisper_model.decoder = CheckpointedStochasticTextDecoder(
             whisper_model.dims.n_vocab,
@@ -239,9 +293,11 @@ def main(config):
             decoder_stochastic_depth,
         )
 
-    # We need to reload weights for deletected Decoder and Encoder because we need to set the heads.
-    if config["training"]["gradient_checkpointing_decoder"] or config["training"]["gradient_checkpointing_encoder"]:
-        whisper_model = load_model_and_set_heads(whisper_model, config["model"]["init_name"])
+    # We need to reload weights after replacing encoder/decoder modules.
+    if checkpoint_reload_state is not None:
+        missing, unexpected = whisper_model.load_state_dict(checkpoint_reload_state, strict=True)
+        if missing or unexpected:
+            raise RuntimeError(f"Unexpected state-dict mismatch. Missing: {missing}, Unexpected: {unexpected}")
 
     if config["training"]["train_only_decoder"]:
         disable_all_grads(whisper_model.encoder)
@@ -274,6 +330,13 @@ def main(config):
     if config["augmentation"].get("deep_spec_augment", {}).get("apply", False):
         # SpecAugment applied inside the encoder as in SpecAugment++
         # https://arxiv.org/abs/2103.16858
+        print(
+            "Depth check before DeepSpecAugment: "
+            f"encoder_blocks={len(whisper_model.encoder.blocks)}, "
+            f"decoder_blocks={len(whisper_model.decoder.blocks)}, "
+            f"dims.encoder={whisper_model.dims.n_audio_layer}, "
+            f"dims.decoder={whisper_model.dims.n_text_layer}"
+        )
         dconf = config["augmentation"]["deep_spec_augment"]
         register_deep_spec_augment_hooks(
             whisper_model,
@@ -378,7 +441,7 @@ def main(config):
     train_loader = get_dataloader(
         hu_dataset=train_dataset,
         tokenizer=tokenizer,
-        n_mels=128 if "v3" in config["model"]["init_name"] else 80,
+        n_mels=whisper_model.dims.n_mels,
         batch_size=config["dataset"]["batch_size"],
         sampler=warmup_sampler,
         shuffle=use_shuffle,
@@ -405,7 +468,7 @@ def main(config):
         val_loaders[val_name] = get_dataloader(
             hu_dataset=val_ds,
             tokenizer=tokenizer,
-            n_mels=128 if "v3" in config["model"]["init_name"] else 80,
+            n_mels=whisper_model.dims.n_mels,
             batch_size=config["dataset"]["batch_size_eval"],
             no_timestamp_training=True,
             prompt_use_rate=0,
