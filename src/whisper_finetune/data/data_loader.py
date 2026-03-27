@@ -183,16 +183,16 @@ class AudioDataset(Dataset):
         return prompt_tokens
 
     def _get_special_tokens(self, is_text_empty: bool, language: str, no_timestamps: bool) -> List[int]:
+        special_tokens = [
+            self.tokenizer.sot,
+            self.tokenizer.special_tokens[f"<|{language}|>"],
+            self.tokenizer.special_tokens["<|transcribe|>"],
+        ]
+        if no_timestamps:
+            special_tokens.append(self.tokenizer.no_timestamps)
+
         if is_text_empty:
-            special_tokens = [self.tokenizer.sot, self.tokenizer.no_speech]
-        else:
-            special_tokens = [
-                self.tokenizer.sot,
-                self.tokenizer.special_tokens[f"<|{language}|>"],
-                self.tokenizer.special_tokens["<|transcribe|>"],
-            ]
-            if no_timestamps:
-                special_tokens.append(self.tokenizer.no_timestamps)
+            special_tokens.append(self.tokenizer.no_speech)
 
         return special_tokens
 
