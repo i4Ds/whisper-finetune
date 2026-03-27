@@ -37,7 +37,7 @@ from whisper_finetune.utils import (
     disable_all_grads,
     get_unique_base_path,
     handle_cuda_memory_operations,
-    print_size_of_model,
+    print_trainable_parameters,
     read_config,
     set_seed,
 )
@@ -227,16 +227,7 @@ def main(config):
 
     ## Get model
     whisper_model = whisper.load_model(base_init_name, device="cpu")
-    architecture_changed = resize_whisper_layers(
-        whisper_model,
-        target_encoder_layers=target_encoder_layers,
-        target_decoder_layers=target_decoder_layers,
-    )
-    if architecture_changed:
-        print(
-            "Whisper architecture override active: "
-            f"encoder={whisper_model.dims.n_audio_layer}, decoder={whisper_model.dims.n_text_layer}"
-        )
+
 
     # NOTE ON PRECISION:
     # DO NOT manually cast the model to bfloat16/half!
@@ -299,6 +290,17 @@ def main(config):
         if missing or unexpected:
             raise RuntimeError(f"Unexpected state-dict mismatch. Missing: {missing}, Unexpected: {unexpected}")
 
+    architecture_changed = resize_whisper_layers(
+        whisper_model,
+        target_encoder_layers=target_encoder_layers,
+        target_decoder_layers=target_decoder_layers,
+    )
+    if architecture_changed:
+        print(
+            "Whisper architecture override active: "
+            f"encoder={whisper_model.dims.n_audio_layer}, decoder={whisper_model.dims.n_text_layer}"
+        )
+
     if config["training"]["train_only_decoder"]:
         disable_all_grads(whisper_model.encoder)
     if config["training"]["train_only_encoder"]:
@@ -308,13 +310,11 @@ def main(config):
     is_lora_run = config["model"].get("lora", False)
     config["training"]["is_lora_run"] = is_lora_run  # Pass to training loop for debug logging
     
-    if is_lora_run:
-        from whisper_finetune.utils import print_trainable_parameters
-        
+    if is_lora_run:        
         print("Applying LoRA adapters...")
         print("Before LoRA:")
         print_trainable_parameters(whisper_model)
-        
+
         apply_lora(
             whisper_model,
             lora_config=config["model"]["lora_config"],
@@ -324,7 +324,8 @@ def main(config):
         
         print("After LoRA:")
         print_lora_info(whisper_model)
-
+    else:
+        print_trainable_parameters(whisper_model)
     whisper_model.to("cuda")
 
     if config["augmentation"].get("deep_spec_augment", {}).get("apply", False):
