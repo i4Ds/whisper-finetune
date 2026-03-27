@@ -126,7 +126,7 @@ def main_loop(
         train_loss = train_step(model, train_iter, optimizer, scheduler, t_config, lora_tracker=lora_tracker, step=step)
         pbar.set_postfix({"loss": train_loss})
         # Use consistent step= for all wandb logs to avoid step mismatch warnings
-        wandb.log({"Learning rate": scheduler.get_last_lr()[0], "Train loss": train_loss}, step=step)
+        wandb.log(_build_lr_log_dict(optimizer, scheduler, train_loss), step=step)
         assert (
             train_loss < t_config["max_train_loss"]
         ), f"Train loss is above {t_config['max_train_loss']}, the loss is unable to converge."
@@ -168,6 +168,44 @@ def main_loop(
             wandb.save(last_model_path)
             if os.path.exists(best_model_path):
                 wandb.save(best_model_path)
+
+
+def _build_lr_log_dict(
+    optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler.LambdaLR,
+    train_loss: float,
+) -> dict:
+    """Log all LR groups so multi-group optimizers like Muon are not misrepresented."""
+    current_lrs = scheduler.get_last_lr()
+    log_data = {
+        "Learning rate": current_lrs[0],
+        "Train loss": train_loss,
+    }
+
+    if len(current_lrs) == 1:
+        return log_data
+
+    log_data["Learning rate/min"] = min(current_lrs)
+    log_data["Learning rate/max"] = max(current_lrs)
+    log_data["Learning rate/mean"] = sum(current_lrs) / len(current_lrs)
+
+    schedule_factors = []
+    for idx, (group, lr) in enumerate(zip(optimizer.param_groups, current_lrs)):
+        if group.get("use_muon"):
+            group_name = f"muon_group_{idx}"
+        else:
+            group_name = f"aux_adamw_group_{idx}"
+        safe_group_name = str(group_name).replace("/", "_")
+        log_data[f"Learning rate/{safe_group_name}"] = lr
+
+        initial_lr = group.get("initial_lr")
+        if initial_lr is not None and initial_lr != 0:
+            schedule_factors.append(lr / initial_lr)
+
+    if schedule_factors:
+        log_data["Learning rate/schedule_factor"] = sum(schedule_factors) / len(schedule_factors)
+
+    return log_data
 
 
 def main(config):
