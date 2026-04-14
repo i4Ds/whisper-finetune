@@ -18,7 +18,7 @@ dataset:
   batch_size_eval: 6
 lr_scheduler:
   type: linear
-  warmup_steps: 128 # If bigger than 1, then it's the total number of steps, else the ratio of total steps to use as warmup.
+  warmup_steps: 1 # Keep debug warmup short so train/eval steps run immediately.
 optimizer:
   type: adamw
   8bit: True

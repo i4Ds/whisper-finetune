@@ -100,9 +100,12 @@ def _build_muon_param_groups(
             {
                 "params": muon_params,
                 "use_muon": True,
+                "lr_log_label": "muon",
                 "lr": base_lr,
+                "base_lr_unscaled": base_lr,
                 "momentum": momentum,
                 "weight_decay": base_weight_decay,
+                "base_weight_decay_unscaled": base_weight_decay,
             }
         ]
 
@@ -119,9 +122,12 @@ def _build_muon_param_groups(
             grouped[key] = {
                 "params": [],
                 "use_muon": True,
+                "lr_log_label": "muon",
                 "lr": base_lr * scale,
+                "base_lr_unscaled": base_lr,
                 "momentum": momentum,
                 "weight_decay": base_weight_decay / scale if base_weight_decay != 0 else 0.0,
+                "base_weight_decay_unscaled": base_weight_decay,
             }
         grouped[key]["params"].append(param)
 
@@ -193,6 +199,10 @@ def get_optimizer(model: WhisperModel, optimizer_conf: Dict, is_lora_run: bool =
 
         muon_conf = optimizer_conf.get("muon_params", {})
         adamw_conf = optimizer_conf.get("params", {})
+        adamw_lr = adamw_conf.get("lr", 3e-4)
+        adamw_betas = tuple(adamw_conf.get("betas", (0.9, 0.95)))
+        adamw_eps = adamw_conf.get("eps", 1e-10)
+        adamw_weight_decay = adamw_conf.get("weight_decay", 0.0)
         match_adamw_update_rms = bool(optimizer_conf.get("muon_match_adamw_update_rms", True))
         match_factor = float(optimizer_conf.get("muon_match_factor", 0.2))
         if match_factor <= 0:
@@ -203,7 +213,7 @@ def get_optimizer(model: WhisperModel, optimizer_conf: Dict, is_lora_run: bool =
 
         muon_lr = muon_conf.get("lr", 0.02)
         muon_momentum = muon_conf.get("momentum", 0.95)
-        muon_weight_decay = muon_conf.get("weight_decay", adamw_conf.get("weight_decay", 0.0))
+        muon_weight_decay = muon_conf.get("weight_decay", adamw_weight_decay)
 
         param_groups = _build_muon_param_groups(
             muon_compatible_params,
@@ -219,10 +229,13 @@ def get_optimizer(model: WhisperModel, optimizer_conf: Dict, is_lora_run: bool =
                 {
                     "params": aux_adam_params,
                     "use_muon": False,
-                    "lr": adamw_conf.get("lr", 3e-4),
-                    "betas": tuple(adamw_conf.get("betas", (0.9, 0.95))),
-                    "eps": adamw_conf.get("eps", 1e-10),
-                    "weight_decay": adamw_conf.get("weight_decay", 0.0),
+                    "lr_log_label": "aux_adamw",
+                    "lr": adamw_lr,
+                    "base_lr_unscaled": adamw_lr,
+                    "betas": adamw_betas,
+                    "eps": adamw_eps,
+                    "weight_decay": adamw_weight_decay,
+                    "base_weight_decay_unscaled": adamw_weight_decay,
                 }
             )
 

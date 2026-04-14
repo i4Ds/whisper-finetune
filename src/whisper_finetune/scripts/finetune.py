@@ -177,12 +177,10 @@ def _build_lr_log_dict(
 ) -> dict:
     """Log all LR groups so multi-group optimizers like Muon are not misrepresented."""
     current_lrs = scheduler.get_last_lr()
-    log_data = {
-        "Learning rate": current_lrs[0],
-        "Train loss": train_loss,
-    }
+    log_data = {"Train loss": train_loss}
 
     if len(current_lrs) == 1:
+        log_data["Learning rate"] = current_lrs[0]
         return log_data
 
     log_data["Learning rate/min"] = min(current_lrs)
@@ -190,11 +188,17 @@ def _build_lr_log_dict(
     log_data["Learning rate/mean"] = sum(current_lrs) / len(current_lrs)
 
     schedule_factors = []
+    grouped_lrs: dict[str, list[float]] = {}
+    grouped_base_lrs: dict[str, list[float]] = {}
     for idx, (group, lr) in enumerate(zip(optimizer.param_groups, current_lrs)):
-        if group.get("use_muon"):
-            group_name = f"muon_group_{idx}"
-        else:
-            group_name = f"aux_adamw_group_{idx}"
+        group_label = str(group.get("lr_log_label") or ("muon" if group.get("use_muon") else "aux_adamw"))
+        grouped_lrs.setdefault(group_label, []).append(lr)
+
+        base_lr_unscaled = group.get("base_lr_unscaled")
+        if base_lr_unscaled is not None:
+            grouped_base_lrs.setdefault(group_label, []).append(base_lr_unscaled)
+
+        group_name = f"{group_label}_group_{idx}"
         safe_group_name = str(group_name).replace("/", "_")
         log_data[f"Learning rate/{safe_group_name}"] = lr
 
@@ -203,7 +207,41 @@ def _build_lr_log_dict(
             schedule_factors.append(lr / initial_lr)
 
     if schedule_factors:
-        log_data["Learning rate/schedule_factor"] = sum(schedule_factors) / len(schedule_factors)
+        shared_schedule_factor = sum(schedule_factors) / len(schedule_factors)
+        log_data["Learning rate/schedule_factor"] = shared_schedule_factor
+    else:
+        shared_schedule_factor = None
+
+    if "muon" in grouped_lrs:
+        muon_actual_lrs = grouped_lrs["muon"]
+        log_data["Learning rate/muon_actual_min"] = min(muon_actual_lrs)
+        log_data["Learning rate/muon_actual_max"] = max(muon_actual_lrs)
+        log_data["Learning rate/muon_actual_mean"] = sum(muon_actual_lrs) / len(muon_actual_lrs)
+
+        muon_base_lrs = grouped_base_lrs.get("muon", [])
+        if muon_base_lrs:
+            muon_base_lr = sum(muon_base_lrs) / len(muon_base_lrs)
+            log_data["Learning rate/muon"] = (
+                muon_base_lr * shared_schedule_factor if shared_schedule_factor is not None else muon_base_lr
+            )
+
+    if "aux_adamw" in grouped_lrs:
+        aux_actual_lrs = grouped_lrs["aux_adamw"]
+        log_data["Learning rate/aux_adamw_actual"] = sum(aux_actual_lrs) / len(aux_actual_lrs)
+
+        aux_base_lrs = grouped_base_lrs.get("aux_adamw", [])
+        if aux_base_lrs:
+            aux_base_lr = sum(aux_base_lrs) / len(aux_base_lrs)
+            log_data["Learning rate/aux_adamw"] = (
+                aux_base_lr * shared_schedule_factor if shared_schedule_factor is not None else aux_base_lr
+            )
+
+    if "Learning rate/muon" in log_data:
+        log_data["Learning rate"] = log_data["Learning rate/muon"]
+    elif "Learning rate/aux_adamw" in log_data:
+        log_data["Learning rate"] = log_data["Learning rate/aux_adamw"]
+    else:
+        log_data["Learning rate"] = current_lrs[0]
 
     return log_data
 
