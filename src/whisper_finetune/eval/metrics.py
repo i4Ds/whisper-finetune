@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
-from jiwer import cer
+from jiwer import cer, wer
 
 
 @dataclass
@@ -53,15 +53,12 @@ def compute_wer(predictions: List[str], references: List[str]) -> List[float]:
     Returns:
         List of WER values (one per utterance)
     """
-    from jiwer import compute_measures
-
     wers = []
     for pred, ref in zip(predictions, references):
         if ref.strip() == "":
             wers.append(0.0 if pred.strip() == "" else 1.0)
         else:
-            measures = compute_measures(ref, pred)
-            wers.append(measures["wer"])
+            wers.append(wer(ref, pred))
     return wers
 
 
