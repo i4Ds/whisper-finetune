@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 
 import torch
 import torch.nn.functional as F
+from jiwer import cer, wer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from whisper import Whisper
@@ -96,13 +97,7 @@ def evaluate_single_dataset(
                 true_normalized = normalize_text(true_text, **VOCAB_SPECS["v0"])
 
                 # Compute WER and CER
-                from jiwer import compute_measures
-
-                wer_measures = compute_measures(true_normalized, pred_normalized)
-                wer_val = wer_measures["wer"]
-
-                from jiwer import cer
-
+                wer_val = wer(true_normalized, pred_normalized)
                 cer_val = cer(true_normalized, pred_normalized)
 
                 # Compute token-level metrics
