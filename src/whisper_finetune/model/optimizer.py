@@ -100,12 +100,9 @@ def _build_muon_param_groups(
             {
                 "params": muon_params,
                 "use_muon": True,
-                "lr_log_label": "muon",
                 "lr": base_lr,
-                "base_lr_unscaled": base_lr,
                 "momentum": momentum,
                 "weight_decay": base_weight_decay,
-                "base_weight_decay_unscaled": base_weight_decay,
             }
         ]
 
@@ -122,12 +119,9 @@ def _build_muon_param_groups(
             grouped[key] = {
                 "params": [],
                 "use_muon": True,
-                "lr_log_label": "muon",
                 "lr": base_lr * scale,
-                "base_lr_unscaled": base_lr,
                 "momentum": momentum,
                 "weight_decay": base_weight_decay / scale if base_weight_decay != 0 else 0.0,
-                "base_weight_decay_unscaled": base_weight_decay,
             }
         grouped[key]["params"].append(param)
 
@@ -189,14 +183,6 @@ def get_optimizer(model: WhisperModel, optimizer_conf: Dict, is_lora_run: bool =
             ndim_threshold=ndim_threshold,
         )
 
-        if len(muon_compatible_params) == 0:
-            print(
-                "WARNING: No transformer block weights matched Muon criteria "
-                f"(ndim >= {ndim_threshold}). Falling back to AdamW."
-            )
-            optimizer = torch.optim.AdamW(parameters_to_optimize, **optimizer_conf["params"])
-            return optimizer
-
         muon_conf = optimizer_conf.get("muon_params", {})
         adamw_conf = optimizer_conf.get("params", {})
         adamw_lr = adamw_conf.get("lr", 3e-4)
@@ -223,21 +209,20 @@ def get_optimizer(model: WhisperModel, optimizer_conf: Dict, is_lora_run: bool =
             match_adamw_update_rms=match_adamw_update_rms,
             match_factor=match_factor,
         )
+        group_metadata = [{"lr_log_label": "muon", "base_lr_unscaled": muon_lr} for _ in param_groups]
 
         if len(aux_adam_params) > 0:
             param_groups.append(
                 {
                     "params": aux_adam_params,
                     "use_muon": False,
-                    "lr_log_label": "aux_adamw",
                     "lr": adamw_lr,
-                    "base_lr_unscaled": adamw_lr,
                     "betas": adamw_betas,
                     "eps": adamw_eps,
                     "weight_decay": adamw_weight_decay,
-                    "base_weight_decay_unscaled": adamw_weight_decay,
                 }
             )
+            group_metadata.append({"lr_log_label": "aux_adamw", "base_lr_unscaled": adamw_lr})
 
         use_distributed_muon = torch.distributed.is_available() and torch.distributed.is_initialized()
         optimizer_cls = MuonWithAuxAdam if use_distributed_muon else SingleDeviceMuonWithAuxAdam
@@ -251,6 +236,7 @@ def get_optimizer(model: WhisperModel, optimizer_conf: Dict, is_lora_run: bool =
             f"{len(muon_compatible_params)} Muon params and {len(aux_adam_params)} AuxAdamW params"
         )
         optimizer = optimizer_cls(param_groups)
+        optimizer._lr_group_metadata = group_metadata
     elif optimizer_conf["type"] == "adam":
         if optimizer_conf["8bit"]:
             try:

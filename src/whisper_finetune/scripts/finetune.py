@@ -203,11 +203,13 @@ def _build_lr_log_dict(
     schedule_factors = []
     grouped_lrs: dict[str, list[float]] = {}
     grouped_base_lrs: dict[str, list[float]] = {}
+    lr_group_metadata = getattr(optimizer, "_lr_group_metadata", [])
     for idx, (group, lr) in enumerate(zip(optimizer.param_groups, current_lrs)):
-        group_label = str(group.get("lr_log_label") or ("muon" if group.get("use_muon") else "aux_adamw"))
+        metadata = lr_group_metadata[idx] if idx < len(lr_group_metadata) else {}
+        group_label = str(metadata.get("lr_log_label") or ("muon" if group.get("use_muon") else "aux_adamw"))
         grouped_lrs.setdefault(group_label, []).append(lr)
 
-        base_lr_unscaled = group.get("base_lr_unscaled")
+        base_lr_unscaled = metadata.get("base_lr_unscaled")
         if base_lr_unscaled is not None:
             grouped_base_lrs.setdefault(group_label, []).append(base_lr_unscaled)
 
