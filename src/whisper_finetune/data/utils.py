@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import torch
 import torch.nn.functional as F
-from datasets import concatenate_datasets, load_dataset, load_from_disk
+from datasets import Features, Value, concatenate_datasets, load_dataset, load_from_disk
 from librosa.feature.inverse import mel_to_audio
 from whisper.audio import HOP_LENGTH, N_FFT, N_SAMPLES
 from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE
@@ -203,6 +203,24 @@ def _pad_list_with_none(values, target_len, label):
     return padded_values
 
 
+def _cast_large_string_columns(dataset):
+    updated_features = {}
+    needs_cast = False
+
+    for column_name, feature in dataset.features.items():
+        if isinstance(feature, Value) and feature.dtype == "large_string":
+            updated_features[column_name] = Value("string")
+            needs_cast = True
+        else:
+            updated_features[column_name] = feature
+
+    if not needs_cast:
+        return dataset
+
+    print("Casting large_string columns to string for dataset schema alignment.")
+    return dataset.cast(Features(updated_features))
+
+
 def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, print_examples=False, example_count=5, return_sizes=False):
     """
     Function to process individual datasets with optional groupby sampling,
@@ -256,6 +274,11 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
         else:
             dataset = dataset.map(normalize_language_values, batched=True)
 
+        if "prompt" not in dataset.column_names:
+            dataset = dataset.map(
+                add_fixed_value, batched=True, fn_kwargs={"col_name": "prompt", "fixed_value": ""}
+            )
+
         # Sampling
         if N is not None:
             if GROUPBYCOL and GROUPBYCOL in dataset.column_names:
@@ -276,6 +299,8 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
         else:
             print("No sampling performed (N is None)")
             dataset = dataset
+
+        dataset = _cast_large_string_columns(dataset)
 
         processed_datasets.append(dataset)
         dataset_sizes.append(len(dataset))

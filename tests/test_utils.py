@@ -3,6 +3,7 @@ Tests for data utilities and normalization functions.
 """
 
 import pytest
+from datasets import Dataset, Features, Value
 
 from whisper_finetune.eval.utils import VOCAB_SPECS, normalize_text
 
@@ -159,3 +160,59 @@ class TestLoadHFDataset:
         """Test that load_hf_dataset function is importable."""
         from whisper_finetune.data.utils import load_hf_dataset
         assert callable(load_hf_dataset)
+
+
+class TestProcessDataset:
+    """Test dataset processing helpers."""
+
+    def test_process_dataset_casts_large_string_columns_before_concat(self, monkeypatch):
+        """Mixed string/large_string datasets should concatenate after schema normalization."""
+        from whisper_finetune.data import utils as data_utils
+
+        dataset_string = Dataset.from_dict(
+            {"text": ["alpha"], "prompt": ["prev"]},
+            features=Features({"text": Value("string"), "prompt": Value("string")}),
+        )
+        dataset_large_string = Dataset.from_dict(
+            {"text": ["beta"], "prompt": ["ctx"]},
+            features=Features({"text": Value("large_string"), "prompt": Value("large_string")}),
+        )
+        datasets_by_name = {
+            "ds_string": {"train": dataset_string},
+            "ds_large": {"train": dataset_large_string},
+        }
+
+        monkeypatch.setattr(data_utils, "load_hf_dataset", lambda dataset_name: datasets_by_name[dataset_name])
+
+        processed = data_utils.process_dataset(
+            ["ds_string", "ds_large"],
+            [None, None],
+            "train",
+            [None, None],
+        )
+
+        assert len(processed) == 2
+        assert processed.features["text"].dtype == "string"
+        assert processed.features["prompt"].dtype == "string"
+        assert processed.features["language"].dtype == "string"
+
+    def test_process_dataset_adds_prompt_column_when_missing(self, monkeypatch):
+        """Datasets without prompt should get an empty-string prompt column."""
+        from whisper_finetune.data import utils as data_utils
+
+        dataset_without_prompt = Dataset.from_dict(
+            {"text": ["alpha"]},
+            features=Features({"text": Value("string")}),
+        )
+
+        monkeypatch.setattr(
+            data_utils,
+            "load_hf_dataset",
+            lambda _dataset_name: {"train": dataset_without_prompt},
+        )
+
+        processed = data_utils.process_dataset(["ds_no_prompt"], [None], "train", [None])
+
+        assert "prompt" in processed.column_names
+        assert processed[0]["prompt"] == ""
+        assert processed[0]["language"] == "de"
