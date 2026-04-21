@@ -12,7 +12,6 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from whisper.audio import CHUNK_LENGTH, N_FRAMES, N_SAMPLES, log_mel_spectrogram
 from whisper.tokenizer import Tokenizer
-from tqdm import tqdm
 
 from whisper_finetune.data.utils import (
     ExtremesFrequencyMasking,
@@ -147,28 +146,40 @@ class AudioDataset(Dataset):
         # Some checks
         assert np.intersect1d(self.hu_dataset.column_names, ["audio", "text", "language"]).size == 3
 
-        # Some more data checks!
-        # Often, some data is corrupted, 1-2 corrupted examples out of TB of data should not hurt training.
-        self.valid_indices = []
-        for i in tqdm(range(len(self.hu_dataset)), desc="Validating dataset"):
-            try:
-                record = self.hu_dataset[i]
-                array = record["audio"]["array"]
-                x = torch.as_tensor(array)
-                # Check if text is valid
-                assert isinstance(record["text"], str), f"Text is not a string: {record['text']}"
-                # Append valid index
-                self.valid_indices.append(i)
-            except Exception as e:
-                print(f"Skipping index {i} due to error: {e}")
-
-        # Print the number of valid records
-        if len(self.valid_indices) != len(self.hu_dataset):
-            print(f"Filtered out {len(self.hu_dataset) - len(self.valid_indices)} invalid records from the dataset.")
-            print(f"Invalid indices: {[i for i in range(len(self.hu_dataset)) if i not in self.valid_indices]}")
+        # Avoid an expensive full scan at startup. Corrupted records are detected lazily
+        # and skipped when accessed.
+        self.invalid_indices = set()
+        self._logged_invalid_count = 0
 
     def __len__(self) -> int:
-        return len(self.valid_indices)
+        return len(self.hu_dataset)
+
+    def _load_valid_record(self, index: int):
+        dataset_len = len(self.hu_dataset)
+        if dataset_len == 0:
+            raise IndexError("Dataset is empty.")
+
+        max_attempts = min(dataset_len, 32)
+        for offset in range(max_attempts):
+            candidate_index = (index + offset) % dataset_len
+            if candidate_index in self.invalid_indices:
+                continue
+
+            try:
+                record = self.hu_dataset[candidate_index]
+                _ = torch.as_tensor(record["audio"]["array"])
+                if not isinstance(record["text"], str):
+                    raise TypeError(f"Text is not a string: {record['text']}")
+                return candidate_index, record
+            except Exception as e:
+                self.invalid_indices.add(candidate_index)
+                self._logged_invalid_count += 1
+                print(f"Skipping invalid dataset record at index {candidate_index}: {e}")
+
+        raise RuntimeError(
+            f"Failed to load a valid record after {max_attempts} attempts starting from index {index}. "
+            f"Known invalid records so far: {len(self.invalid_indices)}"
+        )
 
     def _get_prompt_tokens(self, record: Record, no_timestamps: bool) -> List[int]:
         if torch.rand(1).item() < self.prompt_use_rate and len(record["prompt"]) > 0:
@@ -294,8 +305,7 @@ class AudioDataset(Dataset):
         return decoder_output
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        index = self.valid_indices[index]
-        record = self.hu_dataset[index]
+        index, record = self._load_valid_record(index)
         no_timestamps = self.no_timestamp_training or torch.rand(1).item() < self.no_timestamps_rate
 
         prompt_tokens = self._get_prompt_tokens(record, no_timestamps)

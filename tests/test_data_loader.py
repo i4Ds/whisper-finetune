@@ -49,6 +49,20 @@ class DummyTokenizer:
         }
 
 
+class DummyHFDataset:
+    def __init__(self, records):
+        self.records = records
+
+    def __len__(self):
+        return len(self.records)
+
+    def __getitem__(self, index):
+        record = self.records[index]
+        if isinstance(record, Exception):
+            raise record
+        return record
+
+
 class TestNoSpeechTargets:
     def test_empty_text_uses_no_speech_special_tokens(self):
         dataset = AudioDataset.__new__(AudioDataset)
@@ -116,3 +130,23 @@ class TestNoSpeechTargets:
             dataset.tokenizer.no_speech,
             dataset.tokenizer.eot,
         ]
+
+
+class TestLazyInvalidRecordHandling:
+    def test_load_valid_record_skips_invalid_examples_without_prescan(self):
+        dataset = AudioDataset.__new__(AudioDataset)
+        dataset.hu_dataset = DummyHFDataset(
+            [
+                {"audio": {"array": object()}, "text": "bad tensor conversion", "language": "de"},
+                {"audio": {"array": [0.1, 0.2]}, "text": 123, "language": "de"},
+                {"audio": {"array": [0.1, 0.2]}, "text": "ok", "language": "de"},
+            ]
+        )
+        dataset.invalid_indices = set()
+        dataset._logged_invalid_count = 0
+
+        index, record = dataset._load_valid_record(0)
+
+        assert index == 2
+        assert record["text"] == "ok"
+        assert dataset.invalid_indices == {0, 1}
