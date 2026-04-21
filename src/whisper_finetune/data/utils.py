@@ -1,6 +1,7 @@
 from collections import defaultdict
 from pathlib import Path
 from typing import Union
+import warnings
 
 import numpy as np
 import torch
@@ -8,6 +9,7 @@ import torch.nn.functional as F
 from datasets import concatenate_datasets, load_dataset, load_from_disk
 from librosa.feature.inverse import mel_to_audio
 from whisper.audio import HOP_LENGTH, N_FFT, N_SAMPLES
+from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE
 
 
 def load_hf_dataset(path_or_name: str, **kwargs):
@@ -189,6 +191,18 @@ class ExtremesFrequencyMasking:
         return specs
 
 
+def _pad_list_with_none(values, target_len, label):
+    padded_values = list(values)
+    if len(padded_values) < target_len:
+        missing = target_len - len(padded_values)
+        warnings.warn(
+            f"{label} has {len(padded_values)} entries for {target_len} datasets; appending {missing} None value(s) to avoid dropping data in zip().",
+            stacklevel=2,
+        )
+        padded_values.extend([None] * missing)
+    return padded_values
+
+
 def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, print_examples=False, example_count=5, return_sizes=False):
     """
     Function to process individual datasets with optional groupby sampling,
@@ -210,9 +224,9 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
     processed_datasets = []
     dataset_sizes = []
 
-    # Validate lengths
-    if not (len(select_n_per_ds) == len(groupby_col) or len(select_n_per_ds) == len(dataset_names)):
-        print(f"Warning! Check length of select_n_per_ds, groupby_col and dataset_names")
+    dataset_names = list(dataset_names)
+    select_n_per_ds = _pad_list_with_none(select_n_per_ds, len(dataset_names), "select_n_per_ds")
+    groupby_col = _pad_list_with_none(groupby_col, len(dataset_names), "groupby_col")
 
     for N, GROUPBYCOL, dataset_name in zip(select_n_per_ds, groupby_col, dataset_names):
         # Load - supports both local and remote datasets
@@ -239,6 +253,8 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
             dataset = dataset.map(
                 add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
             )
+        else:
+            dataset = dataset.map(normalize_language_values, batched=True)
 
         # Sampling
         if N is not None:
@@ -274,6 +290,34 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
 
 def add_fixed_value(batch, col_name, fixed_value):
     batch[col_name] = [fixed_value] * len(batch["text"])
+    return batch
+
+
+def _normalize_language_value(language):
+    if not isinstance(language, str):
+        warnings.warn(
+            f"Language value {language!r} is not a string; defaulting to 'de'.",
+            stacklevel=2,
+        )
+        return "de"
+
+    normalized = language.strip().lower()
+    if normalized in LANGUAGES:
+        return normalized
+
+    language_code = TO_LANGUAGE_CODE.get(normalized)
+    if language_code is not None:
+        return language_code
+
+    warnings.warn(
+        f"Unsupported language value {language!r}; defaulting to 'de'.",
+        stacklevel=2,
+    )
+    return "de"
+
+
+def normalize_language_values(batch):
+    batch["language"] = [_normalize_language_value(language) for language in batch["language"]]
     return batch
 
 

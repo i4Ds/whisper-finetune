@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import subprocess
+import warnings
 from pathlib import Path
 from pprint import pprint
 
@@ -76,6 +77,18 @@ def _resolve_model_architecture(model_config: dict) -> tuple[str, int | None, in
         decoder_layers = int(decoder_layers)
 
     return base_init_name, encoder_layers, decoder_layers
+
+
+def _pad_list_with_none(values, target_len, label):
+    padded_values = list(values)
+    if len(padded_values) < target_len:
+        missing = target_len - len(padded_values)
+        warnings.warn(
+            f"{label} has {len(padded_values)} entries for {target_len} validation datasets; appending {missing} None value(s) to avoid dropping data in zip().",
+            stacklevel=2,
+        )
+        padded_values.extend([None] * missing)
+    return padded_values
 
 
 def main_loop(
@@ -466,6 +479,8 @@ def main(config):
             else:
                 name = val_ds
             val_dataset_names.append(name)
+    else:
+        val_dataset_names = _pad_list_with_none(val_dataset_names, len(val_datasets_config), "val_dataset_names")
 
     # Create a dictionary of validation datasets
     val_datasets_dict = {}
