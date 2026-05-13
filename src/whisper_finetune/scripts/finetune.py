@@ -531,6 +531,14 @@ def main(config):
         print(f"  - Warmup indices: {warmup_start} to {warmup_end} ({warmup_end - warmup_start} samples)")
         print(f"  - Warmup steps: {config['lr_scheduler']['warmup_steps']}")
 
+    train_num_workers = config["dataset"].get("train_num_workers", min(os.cpu_count() or 1, 8))
+    # Validation runs inside the training loop, so default to single-process loading.
+    # This avoids worker respawn/fork stalls once the training loader and CUDA context are active.
+    eval_num_workers = config["dataset"].get("eval_num_workers", 0)
+
+    print(f"Train DataLoader workers: {train_num_workers}")
+    print(f"Eval DataLoader workers: {eval_num_workers}")
+
     # Get dataloaders
     train_loader = get_dataloader(
         hu_dataset=train_dataset,
@@ -543,7 +551,7 @@ def main(config):
         max_prompt_length=config["dataset"]["max_prompt_length"],
         prompt_use_rate=config["dataset"]["prompt_use_rate"],
         no_timestamps_rate=config["dataset"]["no_timestamp_rate"],
-        num_workers=min(os.cpu_count(), 8),
+        num_workers=train_num_workers,
         spec_augment=config["augmentation"]["spec_augment"]["apply"],
         spec_augment_params=config["augmentation"]["spec_augment"],
         extremes_spec_augment=config["augmentation"]["extremes_spec_augment"]["apply"],
@@ -567,7 +575,7 @@ def main(config):
             no_timestamp_training=True,
             prompt_use_rate=0,
             no_timestamps_rate=0,
-            num_workers=min(os.cpu_count(), 8),
+            num_workers=eval_num_workers,
         )
 
     # Load optimizer
