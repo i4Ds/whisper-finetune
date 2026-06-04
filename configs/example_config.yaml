@@ -90,6 +90,7 @@ augmentation:
     apply: True  # Enable deep SpecAugment
     time_mask_param: 100  # Maximum time mask length
     freq_mask_param: 27  # Maximum frequency mask length
+    p: 1.0  # Probability of applying deep SpecAugment
     layer_indices: null  # Which encoder layers to augment (null = all except last)
   
   bpe_dropout: 0.1  # BPE dropout rate for tokenization (0.0-1.0)
