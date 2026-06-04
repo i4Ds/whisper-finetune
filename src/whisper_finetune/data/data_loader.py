@@ -107,10 +107,16 @@ class AudioDataset(Dataset):
         self.time_stretch_max_rate = time_stretch_max_rate
         self.bpe_dropout = bpe_dropout
         if spec_augment:
+            self.spec_augment_p = float(spec_augment_params.get("p", 1.0))
+            if not 0.0 <= self.spec_augment_p <= 1.0:
+                raise ValueError(
+                    f"spec_augment p must be between 0 and 1, got {self.spec_augment_p}"
+                )
             self.time_masking = T.TimeMasking(time_mask_param=spec_augment_params["time_mask_param"])
             self.freq_masking = T.FrequencyMasking(freq_mask_param=spec_augment_params["freq_mask_param"])
             self.time_warping = TimeWarpAugmenter(W=spec_augment_params["time_warp_w"])
         else:
+            self.spec_augment_p = 0.0
             self.time_masking = None
             self.freq_masking = None
             self.time_warping = None
@@ -275,7 +281,7 @@ class AudioDataset(Dataset):
         if mel.shape[1] != N_FRAMES:
             mel = pad_or_trim(mel, N_FRAMES)
 
-        if self.spec_augment:
+        if self._should_apply_spec_augment():
             mel = self.time_warping(mel)
             mel = self.time_masking(mel)
             mel = self.freq_masking(mel)
@@ -284,6 +290,15 @@ class AudioDataset(Dataset):
             mel = self.extreme_freq_masking(mel)
 
         return mel
+
+    def _should_apply_spec_augment(self) -> bool:
+        if not self.spec_augment:
+            return False
+        if self.spec_augment_p >= 1.0:
+            return True
+        if self.spec_augment_p <= 0.0:
+            return False
+        return torch.rand(1).item() < self.spec_augment_p
 
     def _construct_decoder_output(
         self, prompt_tokens: List[int], special_tokens: List[int], text_tokens: List[int]
