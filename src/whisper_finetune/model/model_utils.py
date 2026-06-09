@@ -346,13 +346,31 @@ def register_deep_spec_augment_hooks(
     model: Whisper,
     time_mask_param: int,
     freq_mask_param: int,
+    p: float = 1.0,
     layer_indices: Optional[list] = None,
 ) -> None:
+    p = float(p)
+    if not 0.0 <= p <= 1.0:
+        raise ValueError(f"deep_spec_augment p must be between 0 and 1, got {p}")
+
     time_mask = T.TimeMasking(time_mask_param=time_mask_param)
     freq_mask = T.FrequencyMasking(freq_mask_param=freq_mask_param)
+    state = {"apply": False}
+
+    def _should_apply_deep_spec_augment() -> bool:
+        if p >= 1.0:
+            return True
+        if p <= 0.0:
+            return False
+        return torch.rand(1).item() < p
+
+    def _encoder_pre_hook(module, input):
+        # Keep this decision until the next encoder forward so checkpoint
+        # recomputation uses the same DeepSpecAugment on/off state.
+        state["apply"] = _should_apply_deep_spec_augment()
 
     def _norm_hook(module, input, output):
-        if module.training:
+        if module.training and state["apply"]:
             # output here is normalized: shape (batch, seq_len, embed_dim)
             # Convert to (batch, embed_dim, seq_len) for masking
             x = output.permute(0, 2, 1)
@@ -378,3 +396,5 @@ def register_deep_spec_augment_hooks(
         # Register hook to the attention layer norm of each block
         layer_norm = model.encoder.blocks[idx].attn_ln
         layer_norm.register_forward_hook(_norm_hook)
+
+    model.encoder.register_forward_pre_hook(_encoder_pre_hook)
