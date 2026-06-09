@@ -434,6 +434,7 @@ def main(config):
             whisper_model,
             time_mask_param=dconf["time_mask_param"],
             freq_mask_param=dconf["freq_mask_param"],
+            p=dconf.get("p", 1.0),
             layer_indices=dconf["layer_indices"],
         )
 

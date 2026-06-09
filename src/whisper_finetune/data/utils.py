@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from datasets import Features, Value, concatenate_datasets, load_dataset, load_from_disk
-from librosa.feature.inverse import mel_to_audio
 from whisper.audio import HOP_LENGTH, N_FFT, N_SAMPLES
 from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE
 
@@ -400,6 +399,8 @@ def inverse_mel_to_audio(
     - audio : np.ndarray
         The reconstructed audio signal as a NumPy array.
     """
+    from librosa.feature.inverse import mel_to_audio
+
     # Convert the Mel spectrogram to a NumPy array and apply power
     if torch.is_tensor(mel_spec):
         mel_spec_np = mel_spec.numpy()
