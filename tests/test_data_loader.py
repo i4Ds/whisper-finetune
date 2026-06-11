@@ -2,11 +2,24 @@
 Tests for Whisper data loading and decoder target construction.
 """
 
+from pathlib import Path
 import sys
 import types
 
+import numpy as np
 import pytest
 import torch
+
+FIXTURE_AUDIO_PATH = Path(__file__).parent / "fixtures" / "28210.mp3"
+FIXTURE_TRANSCRIPT = (
+    '<|0.00|> Für die Glaubwürdigkeit der Union ist es unverzichtbar, dass Wort und Tat übereinstimmen.'
+    '<|4.60|><|7.18|> Zweifellos ist Integrität im Online-spielesektor extrem wichtig.'
+    '<|10.58|><|11.30|> Die "Sir Tristram" war eines von sechs Landungsschiffen der Round-Table-Klasse.'
+    "<|16.10|><|16.12|> Nordöstlich befindet sich der Stadtteil Opladen."
+    "<|18.40|><|20.08|> Entscheidend sind letztendlich die Aktivitäten, die auf den Wegen durchgeführt werden."
+    "<|25.58|>"
+)
+FIXTURE_TRANSCRIPT_WITH_PARTIAL_SEGMENT_START = FIXTURE_TRANSCRIPT + "<|26.00|>"
 
 
 def _install_whisper_stubs():
@@ -55,6 +68,9 @@ class DummyTokenizer:
             "<|de|>": 6,
             "<|transcribe|>": 7,
         }
+
+    def encode(self, text, dropout_prob=0.0):
+        return [10 + (ord(char) % 80) for char in text]
 
 
 class DummyHFDataset:
@@ -162,6 +178,197 @@ class TestLazyInvalidRecordHandling:
         assert index == 2
         assert record["text"] == "ok"
         assert dataset.invalid_indices == {0, 1}
+
+
+class TestTimestampAudioPaddingBehavior:
+    def _build_dataset(self):
+        dataset = AudioDataset(
+            DummyHFDataset([]),
+            DummyTokenizer(),
+        )
+        return dataset
+
+    def test_no_timestamps_strips_single_final_timestamp_without_partial_cut(self):
+        dataset = self._build_dataset()
+
+        text_tokens, next_partial_segment_start = dataset._get_text_tokens(
+            "<|0.00|> Text.<|3.64|><|3.66|> More text.<|25.58|>",
+            no_timestamps=True,
+        )
+
+        assert next_partial_segment_start is None
+        assert text_tokens
+        assert all(token < dataset.tokenizer.timestamp_begin for token in text_tokens)
+
+    def test_no_timestamps_detects_double_final_timestamp_for_partial_cut(self):
+        dataset = self._build_dataset()
+
+        text_tokens, next_partial_segment_start = dataset._get_text_tokens(
+            "<|0.00|> Text.<|24.28|><|24.94|>",
+            no_timestamps=True,
+        )
+
+        assert next_partial_segment_start == pytest.approx(24.94)
+        assert text_tokens
+        assert all(token < dataset.tokenizer.timestamp_begin for token in text_tokens)
+
+    def test_timestamp_training_keeps_timestamps_but_does_not_cut_audio(self, monkeypatch):
+        dataset = self._build_dataset()
+        base_mel = torch.arange(data_loader_module.N_FRAMES).repeat(80, 1).float()
+        monkeypatch.setattr(
+            data_loader_module,
+            "log_mel_spectrogram",
+            lambda *args, **kwargs: base_mel.clone(),
+        )
+
+        text_tokens, next_partial_segment_start = dataset._get_text_tokens(
+            "<|0.00|> Text.<|24.28|><|24.94|>",
+            no_timestamps=False,
+        )
+        mel = dataset._calculate_mel(
+            torch.zeros(16000),
+            next_partial_segment_start=next_partial_segment_start,
+            no_timestamps=False,
+        )
+
+        assert next_partial_segment_start == pytest.approx(24.94)
+        assert any(token >= dataset.tokenizer.timestamp_begin for token in text_tokens)
+        assert torch.equal(mel, base_mel)
+
+    def test_no_timestamps_cuts_and_pads_when_partial_segment_start_is_set(self, monkeypatch):
+        dataset = self._build_dataset()
+        base_mel = torch.arange(data_loader_module.N_FRAMES).repeat(80, 1).float()
+        monkeypatch.setattr(
+            data_loader_module,
+            "log_mel_spectrogram",
+            lambda *args, **kwargs: base_mel.clone(),
+        )
+
+        mel = dataset._calculate_mel(
+            torch.zeros(16000),
+            next_partial_segment_start=24.94,
+            no_timestamps=True,
+        )
+
+        cut_frame = int(24.94 * dataset.num_frames_per_second)
+        assert mel.shape == base_mel.shape
+        assert torch.equal(mel[:, :cut_frame], base_mel[:, :cut_frame])
+        assert torch.equal(mel[:, cut_frame:], torch.zeros_like(mel[:, cut_frame:]))
+
+    def test_no_timestamps_with_single_final_timestamp_uses_normal_audio_path(self, monkeypatch):
+        dataset = self._build_dataset()
+        base_mel = torch.arange(data_loader_module.N_FRAMES).repeat(80, 1).float()
+        monkeypatch.setattr(
+            data_loader_module,
+            "log_mel_spectrogram",
+            lambda *args, **kwargs: base_mel.clone(),
+        )
+
+        mel = dataset._calculate_mel(
+            torch.zeros(16000),
+            next_partial_segment_start=None,
+            no_timestamps=True,
+        )
+
+        assert torch.equal(mel, base_mel)
+
+
+@pytest.mark.slow
+@pytest.mark.integration
+class TestFixtureAudioIntegration:
+    def _load_fixture_audio_array(self):
+        torchaudio = pytest.importorskip("torchaudio")
+        waveform, sample_rate = torchaudio.load(FIXTURE_AUDIO_PATH)
+
+        assert sample_rate == 16000
+        assert waveform.shape[0] == 1
+        return waveform.squeeze(0).numpy()
+
+    def _build_dataset(self, audio_array, no_timestamp_training, text=FIXTURE_TRANSCRIPT):
+        return AudioDataset(
+            DummyHFDataset(
+                [
+                    {
+                        "audio": {"array": audio_array},
+                        "text": text,
+                        "language": "de",
+                    }
+                ]
+            ),
+            DummyTokenizer(),
+            no_timestamp_training=no_timestamp_training,
+            no_timestamps_rate=0.0,
+            prompt_use_rate=0.0,
+        )
+
+    def test_single_final_timestamp_no_timestamp_training_keeps_normal_audio_path(self, monkeypatch):
+        audio_array = self._load_fixture_audio_array()
+        dataset = self._build_dataset(audio_array, no_timestamp_training=True)
+        base_mel = torch.arange(data_loader_module.N_FRAMES).repeat(80, 1).float()
+        captured = {}
+
+        def fake_log_mel_spectrogram(audio, *args, **kwargs):
+            captured["audio"] = np.asarray(audio).copy()
+            return base_mel.clone()
+
+        monkeypatch.setattr(data_loader_module, "log_mel_spectrogram", fake_log_mel_spectrogram)
+
+        mel, decoder_input, decoder_output = dataset[0]
+
+        assert mel.shape == (80, data_loader_module.N_FRAMES)
+        assert torch.equal(mel, base_mel)
+        assert captured["audio"].shape[0] == data_loader_module.N_SAMPLES
+        np.testing.assert_allclose(captured["audio"][: audio_array.shape[0]], audio_array)
+        assert dataset.tokenizer.no_timestamps in decoder_input.tolist()
+        assert all(token < dataset.tokenizer.timestamp_begin for token in decoder_input.tolist())
+        assert all(token < dataset.tokenizer.timestamp_begin for token in decoder_output.tolist())
+
+    def test_double_final_timestamp_no_timestamp_training_cuts_and_pads_mel(self, monkeypatch):
+        audio_array = self._load_fixture_audio_array()
+        dataset = self._build_dataset(
+            audio_array,
+            no_timestamp_training=True,
+            text=FIXTURE_TRANSCRIPT_WITH_PARTIAL_SEGMENT_START,
+        )
+        base_mel = torch.arange(data_loader_module.N_FRAMES).repeat(80, 1).float()
+
+        monkeypatch.setattr(
+            data_loader_module,
+            "log_mel_spectrogram",
+            lambda *args, **kwargs: base_mel.clone(),
+        )
+
+        mel, decoder_input, decoder_output = dataset[0]
+
+        cut_frame = int(26.00 * dataset.num_frames_per_second)
+        assert mel.shape == (80, data_loader_module.N_FRAMES)
+        assert torch.equal(mel[:, :cut_frame], base_mel[:, :cut_frame])
+        assert torch.equal(mel[:, cut_frame:], torch.zeros_like(mel[:, cut_frame:]))
+        assert dataset.tokenizer.no_timestamps in decoder_input.tolist()
+        assert all(token < dataset.tokenizer.timestamp_begin for token in decoder_input.tolist())
+        assert all(token < dataset.tokenizer.timestamp_begin for token in decoder_output.tolist())
+
+    def test_single_final_timestamp_timestamp_training_keeps_timestamps_and_normal_audio_path(self, monkeypatch):
+        audio_array = self._load_fixture_audio_array()
+        dataset = self._build_dataset(audio_array, no_timestamp_training=False)
+        base_mel = torch.arange(data_loader_module.N_FRAMES).repeat(80, 1).float()
+        captured = {}
+
+        def fake_log_mel_spectrogram(audio, *args, **kwargs):
+            captured["audio"] = np.asarray(audio).copy()
+            return base_mel.clone()
+
+        monkeypatch.setattr(data_loader_module, "log_mel_spectrogram", fake_log_mel_spectrogram)
+
+        mel, decoder_input, decoder_output = dataset[0]
+
+        assert mel.shape == (80, data_loader_module.N_FRAMES)
+        assert torch.equal(mel, base_mel)
+        assert captured["audio"].shape[0] == data_loader_module.N_SAMPLES
+        np.testing.assert_allclose(captured["audio"][: audio_array.shape[0]], audio_array)
+        assert dataset.tokenizer.no_timestamps not in decoder_input.tolist()
+        assert any(token >= dataset.tokenizer.timestamp_begin for token in decoder_input.tolist())
+        assert any(token >= dataset.tokenizer.timestamp_begin for token in decoder_output.tolist())
 
 
 class AdditiveTransform:
