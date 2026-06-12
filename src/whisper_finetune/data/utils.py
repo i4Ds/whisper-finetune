@@ -265,6 +265,10 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
         if "sentence" in dataset.column_names:
             dataset = dataset.rename_column("sentence", "text")
 
+        # Rename 'sentence_de' to 'text'
+        if "sentence_de" in dataset.column_names:
+            dataset = dataset.rename_column("sentence_de", "text")
+
         # Ensure 'language' column exists
         if "language" not in dataset.column_names:
             dataset = dataset.map(
