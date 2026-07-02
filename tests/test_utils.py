@@ -165,6 +165,16 @@ class TestLoadHFDataset:
 class TestProcessDataset:
     """Test dataset processing helpers."""
 
+    def test_normalize_language_value_rejects_invalid_values(self):
+        """Invalid language values should fail instead of defaulting to German."""
+        from whisper_finetune.data import utils as data_utils
+
+        with pytest.raises(ValueError):
+            data_utils._normalize_language_value(None)
+
+        with pytest.raises(ValueError):
+            data_utils._normalize_language_value("not-a-language")
+
     def test_process_dataset_casts_large_string_columns_before_concat(self, monkeypatch):
         """Mixed string/large_string datasets should concatenate after schema normalization."""
         from whisper_finetune.data import utils as data_utils
@@ -216,3 +226,107 @@ class TestProcessDataset:
         assert "prompt" in processed.column_names
         assert processed[0]["prompt"] == ""
         assert processed[0]["language"] == "de"
+
+    def test_process_dataset_selects_language_tag_before_concat(self, monkeypatch):
+        """select_language_tag keeps only matching language rows before concatenation."""
+        from whisper_finetune.data import utils as data_utils
+
+        multilingual_dataset = Dataset.from_dict(
+            {
+                "text": ["eins", "deux", "zwei"],
+                "language": ["de", "fr", "de"],
+                "prompt": ["", "", ""],
+            }
+        )
+
+        monkeypatch.setattr(
+            data_utils,
+            "load_hf_dataset",
+            lambda dataset_name: {"train": multilingual_dataset},
+        )
+
+        processed = data_utils.process_dataset(
+            ["multilingual"],
+            [None],
+            "train",
+            [None],
+            select_language_tag=[["de"]],
+        )
+
+        assert len(processed) == 2
+        assert processed["text"] == ["eins", "zwei"]
+        assert processed["language"] == ["de", "de"]
+
+    def test_process_dataset_mixes_unfiltered_and_language_filtered_datasets(self, monkeypatch):
+        """Each dataset uses its own select_language_tag entry."""
+        from whisper_finetune.data import utils as data_utils
+
+        datasets_by_name = {
+            "unfiltered": {
+                "train": Dataset.from_dict(
+                    {
+                        "text": ["u de", "u fr"],
+                        "language": ["de", "fr"],
+                        "prompt": ["", ""],
+                    }
+                )
+            },
+            "filtered": {
+                "train": Dataset.from_dict(
+                    {
+                        "text": ["f de", "f fr", "f it"],
+                        "language": ["de", "fr", "it"],
+                        "prompt": ["", "", ""],
+                    }
+                )
+            },
+        }
+
+        monkeypatch.setattr(
+            data_utils,
+            "load_hf_dataset",
+            lambda dataset_name: datasets_by_name[dataset_name],
+        )
+
+        processed = data_utils.process_dataset(
+            ["unfiltered", "filtered"],
+            [None, None],
+            "train",
+            [None, None],
+            select_language_tag=[None, ["de"]],
+        )
+
+        assert len(processed) == 3
+        assert processed["text"] == ["u de", "u fr", "f de"]
+        assert processed["language"] == ["de", "fr", "de"]
+
+    def test_process_dataset_filters_before_downsampling(self, monkeypatch):
+        """Filtering runs before per-dataset sampling."""
+        from whisper_finetune.data import utils as data_utils
+
+        dataset = Dataset.from_dict(
+            {
+                "text": ["de one", "fr one", "de two", "fr two"],
+                "language": ["de", "fr", "de", "fr"],
+                "prompt": ["", "", "", ""],
+            }
+        )
+
+        monkeypatch.setattr(
+            data_utils,
+            "load_hf_dataset",
+            lambda dataset_name: {"train": dataset},
+        )
+        monkeypatch.setattr(data_utils.np.random, "choice", lambda values, size, replace=False: [0])
+
+        processed = data_utils.process_dataset(
+            ["multilingual"],
+            [1],
+            "train",
+            [None],
+            select_language_tag=[["de"]],
+        )
+
+        assert len(processed) == 1
+        assert processed[0]["language"] == "de"
+        assert processed[0]["text"] == "de one"

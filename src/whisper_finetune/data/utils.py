@@ -220,19 +220,44 @@ def _cast_large_string_columns(dataset):
     return dataset.cast(Features(updated_features))
 
 
-def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, print_examples=False, example_count=5, return_sizes=False):
+def _filter_language_tags(dataset, language_tags, dataset_name):
+    if language_tags is None:
+        return dataset
+
+    language_tags = set(language_tags)
+    original_size = len(dataset)
+    print(f"Filtering dataset {dataset_name} to language tag(s): {sorted(language_tags)}")
+    dataset = dataset.filter(
+        lambda batch: [language in language_tags for language in batch["language"]],
+        batched=True,
+    )
+    print(f"Filtered dataset size: {len(dataset)} (from {original_size})")
+    return dataset
+
+
+def process_dataset(
+    dataset_names,
+    select_n_per_ds,
+    split_name,
+    groupby_col,
+    print_examples=False,
+    example_count=5,
+    return_sizes=False,
+    select_language_tag=None,
+):
     """
     Function to process individual datasets with optional groupby sampling,
     filtering out entries with text < 30 chars or audio < 6 seconds, and optionally printing examples.
 
     Args:
-    - dataset_names (list): List of dataset names to process.
+    - dataset_names (list): List of dataset names/paths to process.
     - select_n_per_ds (list): List of N values for sampling from each dataset.
     - split_name (str): The split of the dataset to use.
     - groupby_col (list): Column name to use for groupby sampling.
     - print_examples (bool): If True, print a few filtered examples.
     - example_count (int): Number of examples to print.
     - return_sizes (bool): If True, also return list of individual dataset sizes.
+    - select_language_tag (list): Language tag(s) to keep per dataset before sampling.
 
     Returns:
     - concatenated_dataset: A concatenated dataset of all processed datasets.
@@ -244,8 +269,17 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
     dataset_names = list(dataset_names)
     select_n_per_ds = _pad_list_with_none(select_n_per_ds, len(dataset_names), "select_n_per_ds")
     groupby_col = _pad_list_with_none(groupby_col, len(dataset_names), "groupby_col")
+    if select_language_tag is None:
+        select_language_tag = [None] * len(dataset_names)
+    else:
+        select_language_tag = _pad_list_with_none(select_language_tag, len(dataset_names), "select_language_tag")
 
-    for N, GROUPBYCOL, dataset_name in zip(select_n_per_ds, groupby_col, dataset_names):
+    for N, GROUPBYCOL, LANGUAGE_TAG, dataset_name in zip(
+        select_n_per_ds,
+        groupby_col,
+        select_language_tag,
+        dataset_names,
+    ):
         # Load - supports both local and remote datasets
         dataset = load_hf_dataset(dataset_name)
         if split_name not in dataset:
@@ -281,6 +315,8 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
             dataset = dataset.map(
                 add_fixed_value, batched=True, fn_kwargs={"col_name": "prompt", "fixed_value": ""}
             )
+
+        dataset = _filter_language_tags(dataset, LANGUAGE_TAG, dataset_name)
 
         # Sampling
         if N is not None:
@@ -323,11 +359,7 @@ def add_fixed_value(batch, col_name, fixed_value):
 
 def _normalize_language_value(language):
     if not isinstance(language, str):
-        warnings.warn(
-            f"Language value {language!r} is not a string; defaulting to 'de'.",
-            stacklevel=2,
-        )
-        return "de"
+        raise ValueError(f"Language value {language!r} is not a string.")
 
     normalized = language.strip().lower()
     if normalized in LANGUAGES:
@@ -337,11 +369,7 @@ def _normalize_language_value(language):
     if language_code is not None:
         return language_code
 
-    warnings.warn(
-        f"Unsupported language value {language!r}; defaulting to 'de'.",
-        stacklevel=2,
-    )
-    return "de"
+    raise ValueError(f"Unsupported language value {language!r}.")
 
 
 def normalize_language_values(batch):
