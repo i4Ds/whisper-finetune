@@ -451,6 +451,7 @@ def main(config):
             ds_config["select_n_per_t_ds"],
             ds_config["train_split_name"],
             ds_config["groupby_col"],
+            select_language_tag=ds_config.get("select_language_tag"),
             return_sizes=True,
         )
         print(f"\nDataset sizes: {dataset_sizes}")
@@ -461,6 +462,7 @@ def main(config):
             ds_config["select_n_per_t_ds"],
             ds_config["train_split_name"],
             ds_config["groupby_col"],
+            select_language_tag=ds_config.get("select_language_tag"),
         )
         dataset_sizes = None
 
