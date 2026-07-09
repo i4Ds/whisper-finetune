@@ -236,9 +236,18 @@ class StochasticDepthMixin:
         Returns:
             Output tensor (either skipped or after applying the layer)
         """
-        if self.training and torch.rand(1).item() < p:
+        if self.training and p > 0.0 and torch.rand(1).item() < p:
             return x  # Skip the layer
-        return checkpoint(layer, x, use_reentrant=False)  # Apply the layer with checkpointing
+
+        out = checkpoint(layer, x, use_reentrant=False)
+        if self.training and p > 0.0:
+            keep_prob = 1.0 - p
+            if keep_prob <= 0.0:
+                return x
+            # block(x) includes the skip connection internally; only scale block(x) - x.
+            return x + (out - x) / keep_prob
+
+        return out  # Apply the layer with checkpointing
 
 
 class CheckpointedStochasticAudioEncoder(StochasticDepthMixin, AudioEncoder):
@@ -247,7 +256,15 @@ class CheckpointedStochasticAudioEncoder(StochasticDepthMixin, AudioEncoder):
     See: https://arxiv.org/abs/1603.09382
     """
 
-    def __init__(self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, stochastic_depth_prob: float):
+    def __init__(
+        self,
+        n_mels: int,
+        n_ctx: int,
+        n_state: int,
+        n_head: int,
+        n_layer: int,
+        stochastic_depth_prob: float,
+    ):
         super().__init__(n_mels, n_ctx, n_state, n_head, n_layer)
         self.stochastic_depth_prob = stochastic_depth_prob
 
@@ -277,7 +294,15 @@ class CheckpointedStochasticTextDecoder(StochasticDepthMixin, TextDecoder):
     See: https://arxiv.org/abs/1603.09382
     """
 
-    def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, stochastic_depth_prob: float):
+    def __init__(
+        self,
+        n_vocab: int,
+        n_ctx: int,
+        n_state: int,
+        n_head: int,
+        n_layer: int,
+        stochastic_depth_prob: float,
+    ):
         super().__init__(n_vocab, n_ctx, n_state, n_head, n_layer)
         self.stochastic_depth_prob = stochastic_depth_prob
 

@@ -1,0 +1,82 @@
+model:
+  init_name: small
+  bfloat16: False
+
+wandb:
+  enabled: False
+
+dataset:
+  train_datasets: [i4ds/mozilla-cv-13-long-text-de]
+  select_n_per_t_ds: [10000]
+  groupby_col: [null]
+  val_datasets: [i4ds/mozilla-cv-13-long-text-de]
+  val_dataset_names: [mozilla_cv_de]
+  select_n_per_v_ds: [200]
+  train_split_name: "train"
+  valid_split_name: "validation"
+  no_timestamp_training: False
+  max_prompt_length: 223
+  prompt_use_rate: 0.5
+  no_timestamp_rate: 0.5
+  batch_size: 4
+  batch_size_eval: 4
+  train_num_workers: 2
+  eval_num_workers: 0
+  drop_last: True
+
+lr_scheduler:
+  type: linear
+  warmup_steps: 1
+
+optimizer:
+  type: adamw
+  8bit: False
+  params:
+    lr: 2.0e-4
+    weight_decay: 0.1
+    betas: [0.9, 0.98]
+    eps: 1.0e-6
+    amsgrad: False
+
+training:
+  accum_grad_steps: 8
+  label_smoothing: 0.05
+  train_only_decoder: False
+  train_only_encoder: False
+  max_grad_norm: 1.0
+  stochastic_depth: 0.0
+  epochs: 0.02
+  eval_steps: 0.02
+  save_all_checkpoints: False
+  upload_models_to_wandb: False
+  max_train_loss: 25
+  mixed_precision_training: True
+  mp_dtype: fp16
+  gradient_checkpointing_encoder: False
+  gradient_checkpointing_encoder_last_only: False
+  gradient_checkpointing_decoder: False
+
+augmentation:
+  spec_augment:
+    apply: False
+    time_mask_param: 100
+    p: 1.0
+    freq_mask_param: 43
+    time_warp_w: 80
+  deep_spec_augment:
+    apply: False
+    time_mask_param: 100
+    freq_mask_param: 27
+    p: 1.0
+    layer_indices: null
+  bpe_dropout: 0.0
+  extremes_spec_augment:
+    apply: False
+    low_freq_range: 10
+    high_freq_range: 20
+  audio_augment:
+    apply_office_aug: False
+    apply_baseline_aug: False
+
+seed: 123
+save_dir: output/ddp_debug

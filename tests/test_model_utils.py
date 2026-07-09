@@ -41,6 +41,37 @@ class FakeWhisper(torch.nn.Module):
         self.encoder = FakeEncoder(num_blocks)
 
 
+class FakeStochasticDepth(model_utils.StochasticDepthMixin, torch.nn.Module):
+    pass
+
+
+class TestStochasticDepth:
+    def test_stochastic_depth_scales_residual_branch_by_keep_prob(self, monkeypatch):
+        monkeypatch.setattr(model_utils, "checkpoint", lambda layer, x, use_reentrant: layer(x))
+        monkeypatch.setattr(model_utils.torch, "rand", lambda *args, **kwargs: torch.tensor([0.75]))
+
+        module = FakeStochasticDepth()
+        module.train()
+        x = torch.tensor([1.0, 2.0])
+
+        out = module.stochastic_depth(x, lambda value: value + 2.0, p=0.5)
+
+        assert torch.allclose(out, torch.tensor([5.0, 6.0]))
+
+    def test_stochastic_depth_scaling_does_not_change_skip_or_eval(self, monkeypatch):
+        monkeypatch.setattr(model_utils, "checkpoint", lambda layer, x, use_reentrant: layer(x))
+
+        module = FakeStochasticDepth()
+        x = torch.tensor([1.0, 2.0])
+
+        module.train()
+        monkeypatch.setattr(model_utils.torch, "rand", lambda *args, **kwargs: torch.tensor([0.25]))
+        assert torch.allclose(module.stochastic_depth(x, lambda value: value + 2.0, p=0.5), x)
+
+        module.eval()
+        assert torch.allclose(module.stochastic_depth(x, lambda value: value + 2.0, p=0.5), torch.tensor([3.0, 4.0]))
+
+
 class TestDeepSpecAugmentProbability:
     def _patch_masks(self, monkeypatch):
         calls = []

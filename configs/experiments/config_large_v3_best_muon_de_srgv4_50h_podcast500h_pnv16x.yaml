@@ -1,0 +1,141 @@
+# German-focused experiment: 50h SRG V4, 500h SRF podcast, 16x PlayNVoice.
+# Uses ~30s/sample => 120 samples/hour.
+
+model:
+  init_name: large-v3
+  bfloat16: False
+
+  lora: False
+  lora_config:
+    rank: 16
+    lora_alpha: 32
+    lora_dropout: 0.1
+
+dataset:
+  train_datasets: [
+    i4ds/SRG_V4_whisper-prep_v2,
+    i4ds/srf_podcast_v2,
+    i4ds/whisper-spc_r-v2,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+    /scicore/home/graber0001/GROUP/stt/data_nobackup/playnvoice_18_6_2026/playnvoice_1_7_2026/train/hf,
+  ]
+  select_n_per_t_ds: [6000, 60000, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+  select_language_tag: [[de], null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+  groupby_col: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+
+  val_datasets: [
+    i4ds/mozilla-common-voice-de-whisper,
+    i4ds/mozilla-common-voice-it-whisper,
+    i4ds/mozilla-common-voice-fr-whisper,
+    i4ds/voxpopuli-defrit,
+    i4ds/SRG_V4_whisper,
+    i4ds/sg_corpus_whisper_v2,
+    kenfus/28_sec_674d860738470eff74405e4f-huser-fedeli,
+    kenfus/28_sec_05,
+    kenfus/28_sec_67124e07520c24211abed261-raffaela.witting-claudia,
+    kenfus/28_sec_671f45f0520c24211abedbfa-n.ferrari-10min,
+    kenfus/28_sec_02,
+    kenfus/28_sec_671223d3520c24211abed1a7-witting.raffaela-claudia,
+    kenfus/28_sec_674db25d38470eff74405eef-autismus-zentrum3,
+    kenfus/28_sec_67211ecd520c24211abedff0-n.ferrari-10min,
+    kenfus/28_sec_09,
+    kenfus/28_sec_66b30e0fc02e5a253653e352-autismus-zentrum7-gut-13min,
+    kenfus/28_sec_01,
+  ]
+  val_dataset_names: null
+  select_n_per_v_ds: [100, 100, 100, 100, 100, 100, null, null, null, null, null, null, null, null, null, null, null]
+
+  train_split_name: train
+  valid_split_name: validation
+
+  no_timestamp_training: True
+  max_prompt_length: 223
+  prompt_use_rate: 0.5
+  no_timestamp_rate: 0.5
+
+  batch_size: 32
+  batch_size_eval: 32
+
+lr_scheduler:
+  type: cosine
+  warmup_steps: 64
+
+optimizer:
+  type: adamw
+  muon: True
+  8bit: False
+  muon_ndim_threshold: 2
+  muon_params:
+    lr: 0.00002
+    momentum: 0.95
+    weight_decay: 0.01
+  params:
+    lr: 0.00002
+    weight_decay: 0.1
+    betas: [0.9, 0.98]
+    eps: 0.000001
+    amsgrad: False
+
+training:
+  accum_grad_steps: 8
+  label_smoothing: 0.1
+  train_only_decoder: False
+  train_only_encoder: False
+  max_grad_norm: 1.0
+  stochastic_depth: 0.1
+  epochs: 2
+  eval_steps: 0.1
+  save_all_checkpoints: False
+  max_train_loss: 25
+  mixed_precision_training: True
+  mp_dtype: fp16
+  gradient_checkpointing_encoder: True
+  gradient_checkpointing_encoder_last_only: False
+  gradient_checkpointing_decoder: True
+
+augmentation:
+  spec_augment:
+    apply: True
+    time_mask_param: 100
+    p: 1.0
+    freq_mask_param: 43
+    time_warp_w: 80
+
+  deep_spec_augment:
+    apply: True
+    time_mask_param: 100
+    freq_mask_param: 27
+    layer_indices: null
+
+  bpe_dropout: 0.0
+
+  extremes_spec_augment:
+    apply: False
+    low_freq_range: 10
+    high_freq_range: 20
+
+  audio_augment:
+    apply_office_aug: False
+    apply_baseline_aug: False
+    apply_advanced_aug: False
+
+    time_stretch:
+      min_rate: 0.75
+      max_rate: 1.25
+
+seed: 42
+save_dir: /scicore/home/graber0001/GROUP/stt/data_nobackup/whisper/training_outputs
