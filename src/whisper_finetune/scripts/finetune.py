@@ -7,9 +7,10 @@ from pathlib import Path
 from pprint import pprint
 
 import torch
-import wandb
 import whisper
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 from whisper import Whisper as WhisperModel
 from whisper.tokenizer import get_tokenizer
@@ -32,6 +33,7 @@ from whisper_finetune.model.model_utils import (
 from whisper_finetune.model.lora import apply_lora, print_lora_info
 from whisper_finetune.model.optimizer import get_optimizer
 from whisper_finetune.model.scheduler import get_scheduler
+import whisper_finetune.runtime as rt
 from whisper_finetune.utils import (
     calculate_training_steps,
     calculate_val_steps,
@@ -40,6 +42,7 @@ from whisper_finetune.utils import (
     handle_cuda_memory_operations,
     print_trainable_parameters,
     read_config,
+    resolve_local_accum_grad_steps,
     set_seed,
 )
 
@@ -91,6 +94,35 @@ def _pad_list_with_none(values, target_len, label):
     return padded_values
 
 
+def _evaluate_and_maybe_checkpoint(
+    model: WhisperModel,
+    dev_loaders: dict,
+    t_config: dict,
+    save_dir: str,
+    step: int,
+    min_wer: float,
+    save_checkpoints: bool,
+) -> float:
+    dataset_metrics, macro_metrics = evaluate_multiple_datasets(rt.unwrap_model(model), dev_loaders, t_config)
+    eval_wer = macro_metrics["macro_wer"]
+
+    if step == 0:
+        print(f"Initial Macro WER: {eval_wer:.4f}")
+    else:
+        tqdm.write(f"Step {step}: Macro WER={eval_wer:.4f}")
+    log_metrics_to_wandb(dataset_metrics, macro_metrics, step=step, prefix="val")
+
+    if step > 0 and eval_wer < min_wer:
+        min_wer = eval_wer
+        save_model(model, f"{save_dir}/best_model.pt")
+        print(f"  Saved new best model (WER: {min_wer:.4f})")
+
+    if step > 0 and save_checkpoints:
+        save_model(model, f"{save_dir}/step{step}.pt")
+
+    return min(min_wer, eval_wer)
+
+
 def main_loop(
     model: WhisperModel,
     train_loader: DataLoader,
@@ -99,6 +131,7 @@ def main_loop(
     scheduler: torch.optim.lr_scheduler.LambdaLR,
     save_dir: str,
     t_config: dict,
+    scaler: torch.amp.GradScaler | None = None,
 ) -> None:
     """
     Main loop function that iterates through training steps, evaluates the model, logs training progress, and saves models.
@@ -115,58 +148,70 @@ def main_loop(
     Returns:
         None
     """
-    wandb.watch(model, log="all")
+    rt.watch(model, log="all")
 
     # Setup LoRA update tracker if this is a LoRA run
     lora_tracker = None
     if t_config.get("is_lora_run", False):
         from whisper_finetune.model.lora import LoRAUpdateTracker
-        lora_tracker = LoRAUpdateTracker(model)
-        print("LoRA debug logging enabled - tracking parameter norms, gradient norms, and updates")
+        lora_tracker = LoRAUpdateTracker(rt.unwrap_model(model))
+        rt.print_once("LoRA debug logging enabled - tracking parameter norms, gradient norms, and updates")
 
     # Initial evaluation with new multi-dataset evaluator
-    print("\nRunning initial evaluation...")
-    dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config)
-    min_wer = macro_metrics["macro_wer"]
+    min_wer = float("inf")
+    if rt.IS_MAIN:
+        print("\nRunning initial evaluation...")
+        min_wer = _evaluate_and_maybe_checkpoint(
+            model,
+            dev_loaders,
+            t_config,
+            save_dir,
+            step=0,
+            min_wer=min_wer,
+            save_checkpoints=False,
+        )
+    rt.barrier()
 
-    print(f"Initial Macro WER: {min_wer:.4f}")
-    log_metrics_to_wandb(dataset_metrics, macro_metrics, step=0, prefix="val")
-
-    pbar = tqdm(range(1, t_config["train_steps"] + 1))
+    pbar = tqdm(range(1, t_config["train_steps"] + 1), disable=not rt.IS_MAIN)
     train_iter = infinite_iter(train_loader)
     for step in pbar:
         # Pass step so train_step can log LoRA debug info at eval steps
-        train_loss = train_step(model, train_iter, optimizer, scheduler, t_config, lora_tracker=lora_tracker, step=step)
-        pbar.set_postfix({"loss": train_loss})
+        train_loss = train_step(
+            model,
+            train_iter,
+            optimizer,
+            scheduler,
+            t_config,
+            lora_tracker=lora_tracker,
+            step=step,
+            scaler=scaler,
+        )
+        if rt.IS_MAIN:
+            pbar.set_postfix({"loss": train_loss})
         # Use consistent step= for all wandb logs to avoid step mismatch warnings
-        wandb.log(_build_lr_log_dict(optimizer, scheduler, train_loss), step=step)
+        rt.log(_build_lr_log_dict(optimizer, scheduler, train_loss), step=step)
         assert (
             train_loss < t_config["max_train_loss"]
         ), f"Train loss is above {t_config['max_train_loss']}, the loss is unable to converge."
 
         if (step % t_config["val_steps"]) == 0 or step == t_config["train_steps"]:
             # Note: LoRA debug info is logged in train_step at eval steps (captures gradients before optimizer.step)
-            
-            # Evaluate on all validation datasets
-            dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config)
-            eval_wer = macro_metrics["macro_wer"]
+            if rt.IS_MAIN:
+                min_wer = _evaluate_and_maybe_checkpoint(
+                    model,
+                    dev_loaders,
+                    t_config,
+                    save_dir,
+                    step=step,
+                    min_wer=min_wer,
+                    save_checkpoints=t_config["save_all_checkpoints"],
+                )
+            rt.barrier()
 
-            tqdm.write(f"Step {step}: Macro WER={eval_wer:.4f}")
-            log_metrics_to_wandb(dataset_metrics, macro_metrics, step=step, prefix="val")
+    if rt.IS_MAIN:
+        save_model(model, f"{save_dir}/last_model.pt")
 
-            # Save best model based on macro WER
-            if eval_wer < min_wer:
-                min_wer = eval_wer
-                save_model(model, f"{save_dir}/best_model.pt")
-                print(f"  → Saved new best model (WER: {min_wer:.4f})")
-
-            # Always save checkpoint locally (but don't upload to wandb yet)
-            if t_config["save_all_checkpoints"]:
-                save_model(model, f"{save_dir}/step{step}.pt")
-
-    save_model(model, f"{save_dir}/last_model.pt")
-
-    if t_config.get('upload_models_to_wandb', False):
+    if rt.IS_MAIN and t_config.get('upload_models_to_wandb', False):
         # Only upload models to wandb if they are different
         import filecmp
 
@@ -175,12 +220,13 @@ def main_loop(
 
         if os.path.exists(best_model_path) and filecmp.cmp(last_model_path, best_model_path, shallow=False):
             print("Last model and best model are identical. Uploading only best_model.pt to wandb.")
-            wandb.save(best_model_path)
+            rt.save_wandb_file(best_model_path)
         else:
             print("Uploading both last_model.pt and best_model.pt to wandb.")
-            wandb.save(last_model_path)
+            rt.save_wandb_file(last_model_path)
             if os.path.exists(best_model_path):
-                wandb.save(best_model_path)
+                rt.save_wandb_file(best_model_path)
+    rt.barrier()
 
 
 def _build_lr_log_dict(
@@ -275,8 +321,33 @@ def main(config):
         NotImplementedError: If gradient checkpointing is enabled for the encoder and the 'gradient_checkpointing_encoder_last_only' flag is set.
 
     """
+    device = rt.setup_distributed()
+    set_seed(int(config["seed"]) + rt.RANK)
+
+    global_accum_grad_steps = int(config["training"]["accum_grad_steps"])
+    local_accum_grad_steps = resolve_local_accum_grad_steps(global_accum_grad_steps, rt.WORLD_SIZE)
+    config["training"]["global_accum_grad_steps"] = global_accum_grad_steps
+    config["training"]["accum_grad_steps"] = local_accum_grad_steps
+
+    if not rt.IS_DISTRIBUTED and torch.cuda.device_count() > 1:
+        rt.print_once(
+            "Multiple CUDA devices are visible, but DDP is not initialized. "
+            "Launch with torchrun to use data parallel training."
+        )
+
+    rt.print_once(
+        f"Runtime: distributed={rt.IS_DISTRIBUTED}, rank={rt.RANK}, local_rank={rt.LOCAL_RANK}, "
+        f"world_size={rt.WORLD_SIZE}, device={device}"
+    )
+    rt.print_once(
+        "Gradient accumulation: "
+        f"global_accum_grad_steps={global_accum_grad_steps}, "
+        f"local_accum_grad_steps={local_accum_grad_steps}, "
+        f"world_size={rt.WORLD_SIZE}"
+    )
+
     # Start GPU memory profiling
-    torch.cuda.reset_peak_memory_stats("cuda")
+    torch.cuda.reset_peak_memory_stats(device)
     if ENABLE_MEMORY_PROFILING:
         torch.cuda.memory._record_memory_history()
 
@@ -286,9 +357,11 @@ def main(config):
     config["save_dir"] = os.path.join(config["save_dir"], get_unique_base_path())
 
     # Create save directory
-    Path(config["save_dir"]).mkdir(parents=True, exist_ok=True)
+    if rt.IS_MAIN:
+        Path(config["save_dir"]).mkdir(parents=True, exist_ok=True)
+    rt.barrier()
 
-    if config["model"].get("lora", False):
+    if rt.IS_MAIN and config["model"].get("lora", False):
         lora_config = config["model"].get("lora_config", {})
         lora_config_path = os.path.join(config["save_dir"], "lora_config.json")
         with open(lora_config_path, "w", encoding="utf-8") as handle:
@@ -296,7 +369,7 @@ def main(config):
 
     # Print SLURM stuff
     # Check if the script is running on a Slurm cluster
-    if "SLURM_JOB_ID" in os.environ:
+    if rt.IS_MAIN and "SLURM_JOB_ID" in os.environ:
         # Get the current node name
         node_name = os.environ["SLURMD_NODENAME"]
         print(f"Current Node: {node_name}")
@@ -307,10 +380,10 @@ def main(config):
         print(stats)
 
     # Print CUDA version, PyTorch version, and GPU name
-    print("CUDA version:", torch.version.cuda)
-    print("PyTorch version:", torch.__version__)
-    print("GPU Name:", torch.cuda.get_device_name(0))
-    print("GPU memory:", torch.cuda.get_device_properties(0).total_memory / 1024**3, "GB")
+    rt.print_once("CUDA version:", torch.version.cuda)
+    rt.print_once("PyTorch version:", torch.__version__)
+    rt.print_once("GPU Name:", torch.cuda.get_device_name(device))
+    rt.print_once("GPU memory:", torch.cuda.get_device_properties(device).total_memory / 1024**3, "GB")
 
     base_init_name, target_encoder_layers, target_decoder_layers = _resolve_model_architecture(config["model"])
     if base_init_name != config["model"]["init_name"]:
@@ -417,7 +490,7 @@ def main(config):
         print_lora_info(whisper_model)
     else:
         print_trainable_parameters(whisper_model)
-    whisper_model.to("cuda")
+    whisper_model.to(device)
 
     if config["augmentation"].get("deep_spec_augment", {}).get("apply", False):
         # SpecAugment applied inside the encoder as in SpecAugment++
@@ -466,44 +539,50 @@ def main(config):
         )
         dataset_sizes = None
 
-    # Process validation datasets - now supports multiple named datasets
-    # Ensure val_datasets is always a list (wrap single string in list)
-    val_datasets_config = ds_config.get("val_datasets", [])
-    if isinstance(val_datasets_config, str):
-        val_datasets_config = [val_datasets_config]
-    
-    val_dataset_names = ds_config.get("val_dataset_names", None)
-
-    # Auto-generate names if not specified
-    if val_dataset_names is None:
-        val_dataset_names = []
-        for val_ds in val_datasets_config:
-            # If dataset has a /, split and take the part after the last /
-            if "/" in val_ds:
-                name = val_ds.split("/")[-1]
-            else:
-                name = val_ds
-            val_dataset_names.append(name)
-    else:
-        val_dataset_names = _pad_list_with_none(val_dataset_names, len(val_datasets_config), "val_dataset_names")
-
-    # Create a dictionary of validation datasets
     val_datasets_dict = {}
-    # Process each validation dataset separately
-    for i, (val_ds, val_name) in enumerate(zip(val_datasets_config, val_dataset_names)):
-        select_n = ds_config["select_n_per_v_ds"][i] if i < len(ds_config["select_n_per_v_ds"]) else None
-        groupby = ds_config["groupby_col"][i] if i < len(ds_config.get("groupby_col", [])) else None
+    if rt.IS_MAIN:
+        # Process validation datasets - now supports multiple named datasets
+        # Ensure val_datasets is always a list (wrap single string in list)
+        val_datasets_config = ds_config.get("val_datasets", [])
+        if isinstance(val_datasets_config, str):
+            val_datasets_config = [val_datasets_config]
 
-        val_dataset = process_dataset(
-            [val_ds],
-            [select_n] if select_n is not None else [None],
-            ds_config["valid_split_name"],
-            [groupby] if groupby is not None else [None],
-        )
-        val_datasets_dict[val_name] = val_dataset
+        val_dataset_names = ds_config.get("val_dataset_names", None)
+
+        # Auto-generate names if not specified
+        if val_dataset_names is None:
+            val_dataset_names = []
+            for val_ds in val_datasets_config:
+                # If dataset has a /, split and take the part after the last /
+                if "/" in val_ds:
+                    name = val_ds.split("/")[-1]
+                else:
+                    name = val_ds
+                val_dataset_names.append(name)
+        else:
+            val_dataset_names = _pad_list_with_none(val_dataset_names, len(val_datasets_config), "val_dataset_names")
+
+        # Process each validation dataset separately
+        for i, (val_ds, val_name) in enumerate(zip(val_datasets_config, val_dataset_names)):
+            select_n = ds_config["select_n_per_v_ds"][i] if i < len(ds_config["select_n_per_v_ds"]) else None
+            groupby = ds_config["groupby_col"][i] if i < len(ds_config.get("groupby_col", [])) else None
+
+            val_dataset = process_dataset(
+                [val_ds],
+                [select_n] if select_n is not None else [None],
+                ds_config["valid_split_name"],
+                [groupby] if groupby is not None else [None],
+            )
+            val_datasets_dict[val_name] = val_dataset
 
     # Calculate steps
-    config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)
+    train_drop_last = bool(ds_config.get("drop_last", True))
+    config["training"]["train_steps"] = calculate_training_steps(
+        config,
+        train_dataset,
+        world_size=rt.WORLD_SIZE,
+        drop_last=train_drop_last,
+    )
     config["training"]["val_steps"] = calculate_val_steps(config)
     if config["lr_scheduler"]["warmup_steps"] < 1.0:  # If smaller than one, assume it's a ratio.
         config["lr_scheduler"]["warmup_steps"] = int(config["lr_scheduler"]["warmup_steps"] * config["training"]["train_steps"])
@@ -513,7 +592,11 @@ def main(config):
 
     # Create warmup sampler if configured
     warmup_sampler = None
+    train_sampler = None
     use_shuffle = True
+    if rt.IS_DISTRIBUTED and warmup_dataset_idx is not None:
+        raise ValueError("dataset.warmup_dataset_idx is not supported together with DDP yet.")
+
     if warmup_dataset_idx is not None and dataset_sizes is not None:
         # Calculate boundaries for each dataset in the concatenated dataset
         boundaries = get_dataset_boundary_indices(dataset_sizes)
@@ -533,6 +616,17 @@ def main(config):
         print(f"  - Dataset: {ds_config['train_datasets'][warmup_dataset_idx]}")
         print(f"  - Warmup indices: {warmup_start} to {warmup_end} ({warmup_end - warmup_start} samples)")
         print(f"  - Warmup steps: {config['lr_scheduler']['warmup_steps']}")
+    elif rt.IS_DISTRIBUTED:
+        train_sampler = DistributedSampler(
+            train_dataset,
+            num_replicas=rt.WORLD_SIZE,
+            rank=rt.RANK,
+            shuffle=True,
+            seed=int(config["seed"]),
+            drop_last=train_drop_last,
+        )
+        use_shuffle = False
+        rt.print_once(f"DistributedSampler enabled for {rt.WORLD_SIZE} ranks (drop_last={train_drop_last}).")
 
     train_num_workers = config["dataset"].get("train_num_workers", min(os.cpu_count() or 1, 8))
     # Validation runs inside the training loop, so default to single-process loading.
@@ -541,6 +635,7 @@ def main(config):
 
     print(f"Train DataLoader workers: {train_num_workers}")
     print(f"Eval DataLoader workers: {eval_num_workers}")
+    rt.print_once(f"Train DataLoader drop_last: {train_drop_last}")
 
     # Get dataloaders
     train_loader = get_dataloader(
@@ -548,7 +643,7 @@ def main(config):
         tokenizer=tokenizer,
         n_mels=whisper_model.dims.n_mels,
         batch_size=config["dataset"]["batch_size"],
-        sampler=warmup_sampler,
+        sampler=warmup_sampler or train_sampler,
         shuffle=use_shuffle,
         no_timestamp_training=config["dataset"]["no_timestamp_training"],
         max_prompt_length=config["dataset"]["max_prompt_length"],
@@ -565,6 +660,7 @@ def main(config):
         time_stretch_min_rate=config["augmentation"]["audio_augment"].get("time_stretch", {}).get("min_rate", 0.8),
         time_stretch_max_rate=config["augmentation"]["audio_augment"].get("time_stretch", {}).get("max_rate", 1.25),
         bpe_dropout=config["augmentation"]["bpe_dropout"],
+        drop_last=train_drop_last,
     )
 
     # Create multiple validation dataloaders
@@ -587,29 +683,67 @@ def main(config):
     # Get Scheduler
     scheduler = get_scheduler(optimizer, config["lr_scheduler"], config["training"]["train_steps"])
 
+    scaler = None
+    if config["training"]["mixed_precision_training"] and config["training"]["mp_dtype"] == "fp16":
+        scaler = torch.amp.GradScaler("cuda")
+
     # Print out final config
-    pprint(config)
+    if rt.IS_MAIN:
+        pprint(config)
+
+    if rt.IS_DISTRIBUTED:
+        find_unused_parameters = bool(
+            config["training"].get("ddp_find_unused_parameters", config["training"].get("stochastic_depth", 0.0) > 0.0)
+        )
+        whisper_model = DDP(
+            whisper_model,
+            device_ids=[rt.LOCAL_RANK],
+            output_device=rt.LOCAL_RANK,
+            find_unused_parameters=find_unused_parameters,
+            broadcast_buffers=False,
+            gradient_as_bucket_view=True,
+        )
+        rt.print_once(
+            "Wrapped model with DDP "
+            f"(find_unused_parameters={find_unused_parameters}, "
+            "broadcast_buffers=False, gradient_as_bucket_view=True)."
+        )
 
     # Wandb
-    wandb.init(config=config)
+    wandb_conf = dict(config.get("wandb") or {})
+    wandb_enabled = bool(wandb_conf.pop("enabled", True))
+    if not wandb_enabled:
+        wandb_conf.setdefault("mode", "disabled")
+    rt.setup_wandb(config=config, **wandb_conf)
 
     slurm_job_id = os.environ.get("SLURM_JOB_ID")
     if slurm_job_id:
         # Make the SLURM job ID visible in the run metadata for traceability
-        wandb.config.update({"slurm_job_id": slurm_job_id}, allow_val_change=True)
-        wandb.summary["slurm_job_id"] = slurm_job_id
+        rt.update_wandb_config({"slurm_job_id": slurm_job_id}, allow_val_change=True)
+        rt.set_wandb_summary("slurm_job_id", slurm_job_id)
 
     # Train
-    main_loop(whisper_model, train_loader, val_loaders, optimizer, scheduler, config["save_dir"], config["training"])
+    main_loop(
+        whisper_model,
+        train_loader,
+        val_loaders,
+        optimizer,
+        scheduler,
+        config["save_dir"],
+        config["training"],
+        scaler=scaler,
+    )
 
     # Print out peak memory stats
     peak_memory_mb = torch.cuda.max_memory_allocated("cuda") / (1024**2)  # Convert to megabytes
 
-    print(f"Peak memory usage: {peak_memory_mb:.2f} MB")
+    rt.print_once(f"Peak memory usage: {peak_memory_mb:.2f} MB")
 
     # Save memory log
-    if ENABLE_MEMORY_PROFILING:
+    if rt.IS_MAIN and ENABLE_MEMORY_PROFILING:
         handle_cuda_memory_operations(config)
+
+    rt.finish_wandb()
 
 
 
@@ -622,7 +756,7 @@ if __name__ == "__main__":
     config = read_config(args.config)
     config['path_to_config'] = args.config
 
-    # Ensure deterministic behavior across runs
-    set_seed(config["seed"])
-
-    main(config)
+    try:
+        main(config)
+    finally:
+        rt.cleanup()

@@ -14,6 +14,13 @@ def _install_whisper_stubs():
     if "whisper" in sys.modules:
         return
 
+    try:
+        import whisper.audio  # noqa: F401
+        import whisper.tokenizer  # noqa: F401
+        return
+    except ImportError:
+        pass
+
     whisper_module = types.ModuleType("whisper")
 
     audio_module = types.ModuleType("whisper.audio")

@@ -107,9 +107,10 @@ class TestMinLoRAWorkflow:
     def test_complete_lora_workflow(self):
         """Test the complete workflow: add, train, save, load, merge."""
         from minlora import (
-            add_lora, apply_to_lora, disable_lora, enable_lora, 
-            get_lora_params, get_lora_state_dict, merge_lora, remove_lora
+            add_lora, apply_to_lora, disable_lora, enable_lora,
+            get_lora_params, get_lora_state_dict
         )
+        from whisper_finetune.model.lora import merge_lora, remove_lora
         
         # Create model
         model = torch.nn.Sequential(
@@ -221,7 +222,8 @@ class TestMinLoRAAddRemove:
 
     def test_remove_lora_from_model(self):
         """Test that remove_lora removes parametrizations."""
-        from minlora import add_lora, remove_lora
+        from minlora import add_lora
+        from whisper_finetune.model.lora import remove_lora
         
         model = torch.nn.Sequential(
             torch.nn.Linear(64, 128),
@@ -236,7 +238,8 @@ class TestMinLoRAAddRemove:
 
     def test_merge_lora(self):
         """Test that merge_lora merges LoRA weights into base model."""
-        from minlora import add_lora, merge_lora, LoRAParametrization
+        from minlora import add_lora, LoRAParametrization
+        from whisper_finetune.model.lora import merge_lora
         
         model = torch.nn.Sequential(
             torch.nn.Linear(64, 32),

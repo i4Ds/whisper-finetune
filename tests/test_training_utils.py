@@ -5,6 +5,7 @@ Tests for configuration and utility functions.
 import numpy as np
 import pytest
 import torch
+from torch import nn
 
 
 class TestSeedSetting:
@@ -97,6 +98,75 @@ class TestTrainingStepsCalculation:
         # With accum_grad_steps=1, 5 steps per epoch
         # 1 epoch = 5 steps
         assert steps > 0
+
+    def test_calculate_training_steps_scales_by_world_size_with_local_accum(self):
+        """DDP step count should preserve global accum semantics when local accum is resolved."""
+        from whisper_finetune.utils import calculate_training_steps
+
+        config = {
+            "training": {
+                "epochs": 2,
+                "accum_grad_steps": 4,
+            },
+            "dataset": {
+                "batch_size": 8,
+            },
+        }
+
+        class MockDataset:
+            def __len__(self):
+                return 128
+
+        dataset = MockDataset()
+
+        assert calculate_training_steps(config, dataset, world_size=1) == 8
+
+        config["training"]["accum_grad_steps"] = 2
+        assert calculate_training_steps(config, dataset, world_size=2) == 8
+
+        config["training"]["accum_grad_steps"] = 1
+        assert calculate_training_steps(config, dataset, world_size=4) == 8
+
+    def test_resolve_local_accum_grad_steps(self):
+        from whisper_finetune.utils import resolve_local_accum_grad_steps
+
+        assert resolve_local_accum_grad_steps(8, world_size=1) == 8
+        assert resolve_local_accum_grad_steps(8, world_size=2) == 4
+        assert resolve_local_accum_grad_steps(8, world_size=4) == 2
+
+    def test_resolve_local_accum_grad_steps_rejects_fractional_local_window(self):
+        from whisper_finetune.utils import resolve_local_accum_grad_steps
+
+        with pytest.raises(ValueError, match="global accumulation window"):
+            resolve_local_accum_grad_steps(2, world_size=4)
+
+    def test_calculate_training_steps_drop_last_uses_complete_accumulation_windows(self):
+        """drop_last=True should avoid scheduling partial final accumulation windows."""
+        from whisper_finetune.utils import calculate_training_steps
+
+        config = {
+            "training": {
+                "epochs": 1,
+                "accum_grad_steps": 4,
+            },
+            "dataset": {
+                "batch_size": 8,
+            },
+        }
+
+        class MockDataset:
+            def __len__(self):
+                return 130
+
+        dataset = MockDataset()
+
+        # Default/drop_last=True:
+        # per-rank samples = 65, per-rank full microbatches = 8, full accum windows = 2.
+        assert calculate_training_steps(config, dataset, world_size=2) == 2
+        assert calculate_training_steps(config, dataset, world_size=2, drop_last=True) == 2
+
+        # Without drop_last: ceil(130 / (8 * 2 * 4)) = 3 optimizer steps.
+        assert calculate_training_steps(config, dataset, world_size=2, drop_last=False) == 3
 
 
 class TestValidationStepsCalculation:
@@ -301,3 +371,191 @@ class TestInfiniteIterator:
         # Should cycle through [1, 2, 3, 1, 2, 3, ...]
         assert items[:3] == [1, 2, 3]
         assert items[3:6] == [1, 2, 3]
+
+    def test_infinite_iter_calls_distributed_sampler_set_epoch(self):
+        """DistributedSampler shuffling must be reseeded when the loader cycles."""
+        from whisper_finetune.model.model_utils import infinite_iter
+
+        class Sampler:
+            def __init__(self):
+                self.epochs = []
+
+            def set_epoch(self, epoch):
+                self.epochs.append(epoch)
+
+        class Loader:
+            def __init__(self):
+                self.sampler = Sampler()
+
+            def __iter__(self):
+                return iter([1, 2])
+
+        loader = Loader()
+        inf_iter = infinite_iter(loader)
+
+        assert [next(inf_iter) for _ in range(5)] == [1, 2, 1, 2, 1]
+        assert loader.sampler.epochs == [0, 1, 2]
+
+
+class _NoSyncContext:
+    def __init__(self, model):
+        self.model = model
+
+    def __enter__(self):
+        self.model.no_sync_entries += 1
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _TinyDDPModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.proj = nn.Linear(4, 3)
+        self.no_sync_entries = 0
+
+    def no_sync(self):
+        return _NoSyncContext(self)
+
+    def forward(self, x, y_in):
+        logits = self.proj(x)
+        return logits.unsqueeze(1).expand(-1, y_in.shape[1], -1).contiguous()
+
+
+class _IllegalMemoryModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.proj = nn.Linear(4, 3)
+        self.forward_calls = 0
+
+    def forward(self, x, y_in):
+        self.forward_calls += 1
+        raise RuntimeError("CUDA error: an illegal memory access was encountered")
+
+
+class TestDDPGradientAccumulation:
+    def _batch(self):
+        x = torch.randn(2, 4)
+        y_in = torch.zeros(2, 5, dtype=torch.long)
+        y_out = torch.randint(0, 3, (2, 5), dtype=torch.long)
+        return x, y_in, y_out
+
+    def test_train_step_uses_no_sync_until_last_accumulation(self, monkeypatch):
+        """Only the final microbatch in an accumulation window should sync grads."""
+        import whisper_finetune.runtime as rt
+        from whisper_finetune.model.model_utils import train_step
+
+        monkeypatch.setattr(rt, "IS_DISTRIBUTED", True)
+        monkeypatch.setattr(rt, "IS_MAIN", True)
+
+        model = _TinyDDPModel()
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda _: 1.0)
+        train_iter = iter([self._batch(), self._batch(), self._batch()])
+
+        loss = train_step(
+            model,
+            train_iter,
+            optimizer,
+            scheduler,
+            {
+                "mixed_precision_training": False,
+                "accum_grad_steps": 3,
+                "max_grad_norm": 1.0,
+                "mp_dtype": "fp16",
+                "label_smoothing": 0.0,
+                "is_lora_run": False,
+            },
+            step=1,
+        )
+
+        assert loss > 0
+        assert model.no_sync_entries == 2
+        assert scheduler.last_epoch == 1
+
+    def test_train_step_does_not_use_no_sync_without_ddp(self, monkeypatch):
+        import whisper_finetune.runtime as rt
+        from whisper_finetune.model.model_utils import train_step
+
+        monkeypatch.setattr(rt, "IS_DISTRIBUTED", False)
+
+        model = _TinyDDPModel()
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda _: 1.0)
+        train_iter = iter([self._batch(), self._batch()])
+
+        train_step(
+            model,
+            train_iter,
+            optimizer,
+            scheduler,
+            {
+                "mixed_precision_training": False,
+                "accum_grad_steps": 2,
+                "max_grad_norm": 1.0,
+                "mp_dtype": "fp16",
+                "label_smoothing": 0.0,
+                "is_lora_run": False,
+            },
+            step=1,
+        )
+
+        assert model.no_sync_entries == 0
+
+    def test_train_step_raises_illegal_memory_immediately_under_ddp(self, monkeypatch):
+        import whisper_finetune.runtime as rt
+        from whisper_finetune.model.model_utils import train_step
+
+        monkeypatch.setattr(rt, "IS_DISTRIBUTED", True)
+
+        model = _IllegalMemoryModel()
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda _: 1.0)
+        train_iter = iter([self._batch(), self._batch(), self._batch()])
+
+        with pytest.raises(RuntimeError, match="illegal memory"):
+            train_step(
+                model,
+                train_iter,
+                optimizer,
+                scheduler,
+                {
+                    "mixed_precision_training": False,
+                    "accum_grad_steps": 3,
+                    "max_grad_norm": 1.0,
+                    "mp_dtype": "fp16",
+                    "label_smoothing": 0.0,
+                    "is_lora_run": False,
+                },
+                step=1,
+            )
+
+        assert model.forward_calls == 1
+
+    def test_train_step_requires_persistent_scaler_for_fp16(self, monkeypatch):
+        import whisper_finetune.runtime as rt
+        from whisper_finetune.model.model_utils import train_step
+
+        monkeypatch.setattr(rt, "IS_DISTRIBUTED", False)
+
+        model = _TinyDDPModel()
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda _: 1.0)
+        train_iter = iter([self._batch()])
+
+        with pytest.raises(ValueError, match="persistent GradScaler"):
+            train_step(
+                model,
+                train_iter,
+                optimizer,
+                scheduler,
+                {
+                    "mixed_precision_training": True,
+                    "accum_grad_steps": 1,
+                    "max_grad_norm": 1.0,
+                    "mp_dtype": "fp16",
+                    "label_smoothing": 0.0,
+                    "is_lora_run": False,
+                },
+                step=1,
+            )
