@@ -8,7 +8,6 @@ from typing import Callable, Iterator, Optional, Union
 import torch
 import torch.nn.functional as F
 import torchaudio.transforms as T
-import wandb
 from torch import Tensor
 from torch.utils.checkpoint import checkpoint
 from torch.utils.data import DataLoader
@@ -18,6 +17,7 @@ from whisper.model import AudioEncoder, TextDecoder, Whisper
 from whisper.tokenizer import get_tokenizer
 
 from whisper_finetune.eval.utils import VOCAB_SPECS, normalize_text
+import whisper_finetune.runtime as rt
 
 
 def train_step(
@@ -28,6 +28,7 @@ def train_step(
     t_config: dict,
     lora_tracker=None,
     step: int = None,
+    scaler: Optional[torch.amp.GradScaler] = None,
 ) -> float:
     model.train()
     total_loss = 0.0
@@ -40,37 +41,42 @@ def train_step(
     label_smoothing = t_config.get("label_smoothing", 0.0)  # Label smoothing for cross-entropy
     is_lora_run = t_config.get("is_lora_run", False)
 
-    # Setup grad scaler ONLY for fp16 (NOT for bfloat16!)
-    # bfloat16 does NOT need loss scaling - it has sufficient dynamic range
-    # GradScaler with bf16 causes: RuntimeError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
     use_fp16 = mixed_precision_training and t_config["mp_dtype"] == "fp16"
-    if use_fp16:
-        scaler = torch.amp.GradScaler("cuda")
-    else:
-        scaler = None  # No scaler for bf16 or fp32
+    if use_fp16 and scaler is None:
+        raise ValueError("fp16 mixed precision training requires a persistent GradScaler.")
+    if not use_fp16:
+        scaler = None  # No scaler for bf16 or fp32.
 
     max_retries = 3  # Set the maximum number of retries for a training step
 
-    for _ in range(accum_grad_steps):
+    device = next(model.parameters()).device
+
+    for accum_idx in range(accum_grad_steps):
+        is_accum_last = accum_idx == accum_grad_steps - 1
         retry_count = 0
         while retry_count < max_retries:
             try:  # Illegal memory access happens sometimes.
                 x, y_in, y_out = next(train_iter)
-                x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
-                with torch.autocast(device_type="cuda", enabled=mixed_precision_training, dtype=mp_dtype):
-                    audio_features = model.embed_audio(x)
-                    logits = model.logits(y_in, audio_features=audio_features)
-                    loss = F.cross_entropy(logits.transpose(1, 2), y_out, label_smoothing=label_smoothing)
+                x = x.to(device, non_blocking=True)
+                y_in = y_in.to(device, non_blocking=True)
+                y_out = y_out.to(device, non_blocking=True)
+                with rt.maybe_no_sync(model, enabled=rt.IS_DISTRIBUTED and not is_accum_last):
+                    with torch.autocast(device_type="cuda", enabled=mixed_precision_training, dtype=mp_dtype):
+                        logits = model(x, y_in)
+                        loss = F.cross_entropy(logits.transpose(1, 2), y_out, label_smoothing=label_smoothing)
 
-                    loss = loss / accum_grad_steps
-                if scaler:
-                    scaler.scale(loss).backward()
-                else:
-                    loss.backward()
+                        loss = loss / accum_grad_steps
+                    if scaler:
+                        scaler.scale(loss).backward()
+                    else:
+                        loss.backward()
                 total_loss += loss.item()
                 break  # Exit retry loop if no error occurs
             except RuntimeError as e:
                 if "CUDA error: an illegal memory" in str(e):
+                    if rt.IS_DISTRIBUTED:
+                        print("Caught illegal memory access under DDP; aborting instead of retrying.")
+                        raise
                     print(f"Caught illegal memory access, retry {retry_count + 1}")
                     retry_count += 1
                     if retry_count >= max_retries:
@@ -96,7 +102,7 @@ def train_step(
     )
     if should_log_lora:
         from whisper_finetune.model.lora import log_lora_debug_info
-        log_lora_debug_info(model, step=step, tracker=lora_tracker, log_to_wandb=True)
+        log_lora_debug_info(rt.unwrap_model(model), step=step, tracker=lora_tracker, log_to_wandb=rt.IS_MAIN)
 
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
 
@@ -116,12 +122,13 @@ def train_step(
         optimizer.step()
         lr_scheduler.step()
 
-    optimizer.zero_grad()
+    optimizer.zero_grad(set_to_none=True)
 
     return total_loss
 
 
 def save_model(model: Whisper, save_path: str) -> None:
+    model = rt.unwrap_model(model)
     # save model in half precision to save space
     model = copy.deepcopy(model).half()
     # save model weights and config in a dictionary that can be loaded with `whisper.load_model`
@@ -200,9 +207,14 @@ def resize_whisper_layers(
 
 
 def infinite_iter(data_loader: DataLoader) -> Iterator:
+    epoch = 0
     while True:
+        sampler = getattr(data_loader, "sampler", None)
+        if hasattr(sampler, "set_epoch"):
+            sampler.set_epoch(epoch)
         for batch in data_loader:
             yield batch
+        epoch += 1
 
 
 class StochasticDepthMixin:

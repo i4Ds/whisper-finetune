@@ -182,3 +182,5 @@ configs/*.yaml
 *.mp3
 .vscode/*
 whisper_*_utils/*
+*.sh
+configs/experiments/*.yaml

@@ -71,12 +71,21 @@ def apply_lora(
     disable_all_but_parametrized_grads(model)
 
 
-def merge_lora(model: torch.nn.Module) -> None:  
-    """Merge LoRA adapters into the base model weights."""
+def remove_lora(model: torch.nn.Module) -> None:
+    """Remove LoRA adapters and restore the original base weights."""
     def _merge_layer(layer):
         if is_parametrized(layer, "weight"):
             for attr_name in list(layer.parametrizations.keys()):
                 parametrize.remove_parametrizations(layer, attr_name, leave_parametrized=False)
+    model.apply(_merge_layer)
+
+
+def merge_lora(model: torch.nn.Module) -> None:
+    """Merge LoRA adapters into the base model weights."""
+    def _merge_layer(layer):
+        if is_parametrized(layer, "weight"):
+            for attr_name in list(layer.parametrizations.keys()):
+                parametrize.remove_parametrizations(layer, attr_name, leave_parametrized=True)
     model.apply(_merge_layer)
 
 def print_lora_info(model: torch.nn.Module) -> None:
@@ -258,7 +267,7 @@ def log_lora_debug_info(model: torch.nn.Module, step: int, tracker: LoRAUpdateTr
     Returns:
         Dictionary with all logged statistics
     """
-    import wandb
+    import whisper_finetune.runtime as rt
     
     stats = get_lora_debug_stats(model)
     
@@ -274,6 +283,6 @@ def log_lora_debug_info(model: torch.nn.Module, step: int, tracker: LoRAUpdateTr
             if value is not None and key != "param_name":
                 log_dict[f"lora_debug/{key}"] = value
         if log_dict:
-            wandb.log(log_dict, step=step)
+            rt.log(log_dict, step=step)
     
     return stats
