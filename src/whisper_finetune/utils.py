@@ -11,17 +11,41 @@ import torch.distributed as dist
 import yaml
 
 
-def calculate_training_steps(config: Dict, train_dataset) -> int:
+def calculate_training_steps(config: Dict, train_dataset, world_size: int = 1, drop_last: bool = True) -> int:
     # Extract relevant values from config
     samples = len(train_dataset)
     epochs = config["training"]["epochs"]
     batch_size = config["dataset"]["batch_size"]
     accum_grad_steps = config["training"]["accum_grad_steps"]
+    world_size = max(int(world_size), 1)
 
     # Calculate training steps
-    training_steps = math.ceil(samples * epochs / (batch_size * accum_grad_steps))
+    if drop_last:
+        samples_per_rank = samples // world_size
+        microbatches_per_epoch = samples_per_rank // batch_size
+        training_steps = math.floor((microbatches_per_epoch * epochs) / accum_grad_steps)
+        return max(training_steps, 1)
+
+    training_steps = math.ceil(samples * epochs / (batch_size * world_size * accum_grad_steps))
 
     return training_steps
+
+
+def resolve_local_accum_grad_steps(accum_grad_steps: int, world_size: int = 1) -> int:
+    """Map a configured global accumulation window to per-rank local accumulation."""
+    accum_grad_steps = int(accum_grad_steps)
+    world_size = max(int(world_size), 1)
+
+    if accum_grad_steps < 1:
+        raise ValueError(f"accum_grad_steps must be >= 1, got {accum_grad_steps}.")
+
+    if accum_grad_steps % world_size != 0:
+        raise ValueError(
+            "training.accum_grad_steps is interpreted as the global accumulation window and must be "
+            f"divisible by WORLD_SIZE. Got accum_grad_steps={accum_grad_steps} and WORLD_SIZE={world_size}."
+        )
+
+    return accum_grad_steps // world_size
 
 
 def calculate_val_steps(config: Dict) -> int:

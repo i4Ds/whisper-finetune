@@ -5,13 +5,11 @@
 
 # A Bash array of config paths you care about:
 configs=(
-  configs/config_1.yaml
-  configs/config_2.yaml
-  configs/config_3.yaml
-  configs/config_4.yaml
-  configs/config_5.yaml
-  configs/config_6.yaml
-  configs/config_7.yaml
+  configs/experiments/config_large_v3_best_muon_multilingual_downsized_srg180k_pnv_10h.yaml
+  configs/experiments/config_large_v3_best_muon_multilingual_downsized_srg180k_pnv_30h.yaml
+  configs/experiments/config_large_v3_best_muon_multilingual_downsized_srg180k_pnv_50h.yaml
+  configs/experiments/config_large_v3_best_muon_multilingual_downsized_srg180k_pnv_100h.yaml
+  configs/experiments/config_large_v3_best_muon_multilingual_downsized_srg180k_pnv_200h.yaml
 )
 
 for cfg in "${configs[@]}"; do

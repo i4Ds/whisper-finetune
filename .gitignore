@@ -178,8 +178,9 @@ downloaded_models/*
 *.rtf
 *.m4a
 hf_models/*
-configs/*.yaml
+
 *.mp3
 !tests/fixtures/28210.mp3
 .vscode/*
 whisper_*_utils/*
+*.sh

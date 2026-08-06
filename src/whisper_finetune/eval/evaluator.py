@@ -23,6 +23,7 @@ from whisper_finetune.eval.metrics import (
     compute_wer,
 )
 from whisper_finetune.eval.utils import VOCAB_SPECS, normalize_text
+import whisper_finetune.runtime as rt
 
 
 @torch.no_grad()
@@ -46,7 +47,9 @@ def evaluate_single_dataset(
     Returns:
         DatasetMetrics object with all computed metrics
     """
+    model = rt.unwrap_model(model)
     model.eval()
+    device = next(model.parameters()).device
 
     # Read variables from t_config
     mixed_precision_training = t_config.get("mixed_precision_training", True)
@@ -59,7 +62,9 @@ def evaluate_single_dataset(
     per_utterance_metrics = []
 
     for x, y_in, y_out in tqdm(dataloader, desc=f"Evaluating {dataset_name}"):
-        x, y_in, y_out = x.to(model.device), y_in.to(model.device), y_out.to(model.device)
+        x = x.to(device, non_blocking=True)
+        y_in = y_in.to(device, non_blocking=True)
+        y_out = y_out.to(device, non_blocking=True)
 
         with torch.autocast(device_type="cuda", enabled=mixed_precision_training, dtype=mp_dtype):
             logits = model(x, y_in)
@@ -193,8 +198,6 @@ def log_metrics_to_wandb(
         step: Current training step
         prefix: Prefix for metric names (default: "val")
     """
-    import wandb
-
     log_dict = {}
 
     # Log per-dataset metrics
@@ -215,4 +218,4 @@ def log_metrics_to_wandb(
 
     # Use explicit step= parameter instead of putting step in log_dict
     # This avoids W&B step mismatch warnings
-    wandb.log(log_dict, step=step)
+    rt.log(log_dict, step=step)

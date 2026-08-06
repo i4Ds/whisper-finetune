@@ -1,26 +1,25 @@
 #!/bin/bash
 
-# Set your Hugging Face token (recommended: export HF_TOKEN in your .env or shell)
-# export HF_TOKEN=your_hf_token_here
+# Array of folders and corresponding repo names
+declare -a FOLDERS=("63063750" "63063129" "63063128")
+declare -a REPO_NAMES=("kenfus/effortless-butterfly-171" "kenfus/jumping-gorge-170" "kenfus/azure-grass-169")
 
-# Variables
-MODEL_DIR="58434435_/scicore/home/graber0001/GROUP/stt/data_nobackup/whisper/training_outputs/last_model.pt"   # Change to your model directory
-REPO_NAME="worthy-sea-158"                   # Change to your desired repo name
-ORG="i4ds"
+# Loop through each folder/repo pair
+for i in "${!FOLDERS[@]}"; do
+    FOLDER="${FOLDERS[$i]}"
+    REPO_NAME="${REPO_NAMES[$i]}"
+    MODEL_DIR="/scicore/home/graber0001/GROUP/stt/data_nobackup/whisper/training_outputs/$FOLDER/last_model.pt"
+    
+    echo "Processing $REPO_NAME from $FOLDER..."
+    
+    # Create a new private repo under the organization
+    # huggingface-cli repo create "$REPO_NAME" --organization "$ORG" --private
+    
+    # Upload the model file directly
+    huggingface-cli upload "$REPO_NAME" "$MODEL_DIR"
+    
+    echo "✓ Model uploaded to https://huggingface.co/$ORG/$REPO_NAME (private)"
+    echo ""
+done
 
-# Create a new private repo under the organization
-huggingface-cli repo create "$REPO_NAME" --organization "$ORG" --private
-
-# Clone the repo locally
-git clone https://huggingface.co/"$ORG"/"$REPO_NAME"
-cd "$REPO_NAME"
-
-# Copy model files into the repo
-cp "$MODEL_DIR"/* .
-
-# Add, commit, and push files
-git add .
-git commit -m "Add PyTorch model"
-git push
-
-echo "Model pushed to https://huggingface.co/$ORG/$REPO_NAME (private)"
+echo "All models uploaded successfully!"
