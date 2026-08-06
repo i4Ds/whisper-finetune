@@ -489,6 +489,7 @@ def get_dataloader(
     time_stretch_min_rate: float = 0.8,
     time_stretch_max_rate: float = 1.25,
     bpe_dropout: float = 0.0,
+    drop_last: bool = False,
 ) -> DataLoader:
     print(f"Found {len(hu_dataset)} records in the dataset.")
     dataset = AudioDataset(
@@ -523,5 +524,6 @@ def get_dataloader(
         shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=True,
+        drop_last=drop_last,
         collate_fn=collate_fn,
     )
