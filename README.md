@@ -37,6 +37,35 @@ This repository contains code for fine-tuning Whisper speech-to-text models. It 
 ## Data
 Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed as a [🤗 Datasets](https://huggingface.co/docs/datasets/en/index) to the script.
 
+### Timestamp handling
+
+Training records may include Whisper timestamp tokens in the transcript, for example:
+
+```text
+<|0.00|> Some text.<|3.64|><|3.66|> More text.<|7.78|>
+```
+
+The data loader behaves differently depending on whether no-timestamp training is enabled:
+
+- With `no_timestamps=True`, timestamp tokens are removed from the decoder labels and the `<|notimestamps|>` special token is added.
+- With `no_timestamps=False`, timestamp tokens are kept in the decoder labels and the model is trained to predict them.
+
+Audio is normally padded or trimmed to Whisper's 30 second window. There is one special case in no-timestamp training: if the transcript ends with two consecutive timestamp tokens, such as:
+
+```text
+... final text.<|24.28|><|24.94|>
+```
+
+the loader treats the last timestamp as the start of a following partial segment. In that case, with `no_timestamps=True`, the mel spectrogram is cut at `24.94` seconds and then padded back to the 30 second training window so the remaining time is represented as silence.
+
+If the transcript ends with only one timestamp token, such as:
+
+```text
+... final text.<|25.58|>
+```
+
+this special cut is not applied. With `no_timestamps=True`, the timestamp is still removed from the labels, but the audio follows the normal 30 second padding/trimming path.
+
 ## Usage
 
 1. Create a configuration file (see `configs/example_config.yaml` for a fully documented example)
