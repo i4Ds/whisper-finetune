@@ -66,6 +66,13 @@ a model can score well on short clips and then emit full-width 30 second segment
 silently dropping speech. Several configs under `configs/` set `no_timestamp_training: True`
 together with `no_timestamp_rate: 0.5`; that combination trains with no timestamps at all.
 
+This mirrors the upstream behaviour in
+[jumon/whisper-finetuning](https://github.com/jumon/whisper-finetuning), which this repository
+started from. There the same short-circuit exists, but it is spelled out in the CLI help for
+`--no-timestamps-rate`: *"How often to use the no-timestamps mode. Only used if
+`--no-timestamps-training` is NOT set."* The note is worth keeping now that the two settings
+live together in YAML, where both are easy to set at once.
+
 Audio is normally padded or trimmed to Whisper's 30 second window. There is one special case in no-timestamp training: if the transcript ends with two consecutive timestamp tokens, such as:
 
 ```text
