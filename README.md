@@ -63,7 +63,9 @@ and use `no_timestamp_rate` alone — `0.5` means half the samples get `<|notime
 This matters for deployment. A model trained only without timestamps cannot predict them, and
 Whisper's long-form decoding advances its 30 second window using exactly those predictions. Such
 a model can score well on short clips and then emit full-width 30 second segments on long audio,
-silently dropping speech. Several configs under `configs/` set `no_timestamp_training: True`
+making the segment timings unusable for subtitles or for anything that consumes segment
+boundaries. The transcript text itself can stay largely intact, which is what makes this easy to
+miss: WER does not move, and no text is obviously absent - only the timings are wrong. Several configs under `configs/` set `no_timestamp_training: True`
 together with `no_timestamp_rate: 0.5`; that combination trains with no timestamps at all.
 
 This mirrors the upstream behaviour in
