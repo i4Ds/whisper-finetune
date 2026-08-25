@@ -50,6 +50,22 @@ The data loader behaves differently depending on whether no-timestamp training i
 - With `no_timestamps=True`, timestamp tokens are removed from the decoder labels and the `<|notimestamps|>` special token is added.
 - With `no_timestamps=False`, timestamp tokens are kept in the decoder labels and the model is trained to predict them.
 
+The two config keys interact, and the boolean wins:
+
+```python
+no_timestamps = self.no_timestamp_training or torch.rand(1).item() < self.no_timestamps_rate
+```
+
+With `no_timestamp_training: True`, **every** sample is trained with `<|notimestamps|>` and
+`no_timestamp_rate` has no effect. To train on a mixture, set `no_timestamp_training: False`
+and use `no_timestamp_rate` alone — `0.5` means half the samples get `<|notimestamps|>`.
+
+This matters for deployment. A model trained only without timestamps cannot predict them, and
+Whisper's long-form decoding advances its 30 second window using exactly those predictions. Such
+a model can score well on short clips and then emit full-width 30 second segments on long audio,
+silently dropping speech. Several configs under `configs/` set `no_timestamp_training: True`
+together with `no_timestamp_rate: 0.5`; that combination trains with no timestamps at all.
+
 Audio is normally padded or trimmed to Whisper's 30 second window. There is one special case in no-timestamp training: if the transcript ends with two consecutive timestamp tokens, such as:
 
 ```text
