@@ -309,7 +309,16 @@ def process_dataset(
                 add_fixed_value, batched=True, fn_kwargs={"col_name": "language", "fixed_value": "de"}
             )
         else:
-            dataset = dataset.map(normalize_language_values, batched=True)
+            # Perf optimization: datasets.map rewrites EVERY column, so this
+            # one-column string normalisation reads+rewrites all 56 GB of embedded
+            # audio (~65 min, single-threaded) before a single training step.
+            # Our language column is already "lt" for every row, so the map is a
+            # provable no-op. Skip it when nothing would change; output identical.
+            _vals = set(dataset.unique("language"))
+            if any(_normalize_language_value(v) != v for v in _vals):
+                dataset = dataset.map(normalize_language_values, batched=True)
+            else:
+                print("  language already normalised %s - skipping no-op map" % sorted(_vals))
 
         if "prompt" not in dataset.column_names:
             dataset = dataset.map(
