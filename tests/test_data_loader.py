@@ -5,6 +5,7 @@ Tests for Whisper data loading and decoder target construction.
 from pathlib import Path
 import sys
 import types
+import warnings
 
 import numpy as np
 import pytest
@@ -282,6 +283,48 @@ class TestTimestampAudioPaddingBehavior:
 
 @pytest.mark.slow
 @pytest.mark.integration
+class TestNoTimestampRateSelection:
+    """The per-sample choice at AudioDataset.__getitem__ is a short-circuiting
+    ``or``: no_timestamp_training wins outright and no_timestamps_rate is then
+    inert. That override is intended, but it is easy to set both keys in a config
+    and expect a mixture, so pin the behaviour down."""
+
+    def _build_dataset(self, **kwargs):
+        return AudioDataset(DummyHFDataset([]), DummyTokenizer(), **kwargs)
+
+    def _draw(self, dataset, n):
+        return [
+            dataset.no_timestamp_training
+            or torch.rand(1).item() < dataset.no_timestamps_rate
+            for _ in range(n)
+        ]
+
+    def test_rate_controls_the_mixture_when_flag_is_off(self, monkeypatch):
+        dataset = self._build_dataset(no_timestamp_training=False, no_timestamps_rate=0.5)
+        draws = iter([0.1, 0.9] * 50)
+        monkeypatch.setattr(torch, "rand", lambda *a, **k: torch.tensor([next(draws)]))
+
+        assert sum(self._draw(dataset, 100)) == 50
+
+    def test_flag_overrides_the_rate(self):
+        # rate says "never use no-timestamps"; the flag must still win
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            dataset = self._build_dataset(no_timestamp_training=True, no_timestamps_rate=0.0)
+
+        assert all(self._draw(dataset, 50))
+
+    def test_conflicting_settings_warn(self):
+        with pytest.warns(UserWarning, match="has no effect"):
+            self._build_dataset(no_timestamp_training=True, no_timestamps_rate=0.5)
+
+    def test_consistent_settings_do_not_warn(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            self._build_dataset(no_timestamp_training=False, no_timestamps_rate=0.5)
+            self._build_dataset(no_timestamp_training=True, no_timestamps_rate=1.0)
+
+
 class TestFixtureAudioIntegration:
     def _load_fixture_audio_array(self):
         torchaudio = pytest.importorskip("torchaudio")

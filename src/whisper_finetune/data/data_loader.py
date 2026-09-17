@@ -1,4 +1,5 @@
 import re
+import warnings
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -98,6 +99,18 @@ class AudioDataset(Dataset):
         self.max_prompt_length = max_prompt_length
         self.prompt_use_rate = prompt_use_rate
         self.no_timestamps_rate = no_timestamps_rate
+        if self.no_timestamp_training and self.no_timestamps_rate != 1.0:
+            warnings.warn(
+                "no_timestamp_training=True forces every sample to use "
+                f"<|notimestamps|>, so no_timestamps_rate={self.no_timestamps_rate} "
+                "has no effect. To train on a mixture of timestamped and "
+                "untimestamped targets, set no_timestamp_training=False and let "
+                "no_timestamps_rate control the split. A model trained only "
+                "without timestamps cannot predict them, which degrades "
+                "long-form decoding in transformers and faster-whisper.",
+                UserWarning,
+                stacklevel=2,
+            )
         self.spec_augment = spec_augment
         self.extremes_spec_augment = extremes_spec_augment
         self.apply_baseline_aug = apply_baseline_aug
